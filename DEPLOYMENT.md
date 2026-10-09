@@ -85,19 +85,28 @@
 
 ---
 
-### 第七步：在图形界面配置 Zero Trust 单用户访问保护 (Cloudflare Access)
+### 第七步：在图形界面配置 Zero Trust 单用户访问保护 (Cloudflare Access 详解)
 airam 已内置身份鉴权守卫。若希望在网络边缘阻断未经授权的访客接触后台：
 1. 在 Cloudflare 控制台左侧点击 **Zero Trust** -> **Access** -> **Applications**。
-2. 点击 **Add an application** -> 选择 **Self-hosted**：
+2. 点击 **Add an application** -> 选择 **Self-hosted**（自托管应用）：
    - **Application name**：输入 `airam Edge Protection`
-   - **Application domain**：填写你的 Pages 域名（如 `airam.pages.dev`）
+   - **Session Duration**：选择 `24 hours`（或 `7 days`）
+   - **Application domain（域名配置）**：
+     - 若使用自定义域名：Subdomain 填 `airam`，Domain 下拉选你的域名（如 `example.com`），Path 留空
+     - 若使用 Pages 原生域名：在域名输入框填入完整分配的 `airam.pages.dev`
 3. 点击 **Next** 配置策略：
-   - **Policy name**：输入 `Allow Owner`
+   - **Policy name**：输入 `Allow Owner Only`
    - **Action**：选择 `Allow`
-   - **Include rule**：选择 `Emails` -> 输入你的个人邮箱（如 `trpai_bot@outlook.com`）
-4. **额外放行 Webhook**：
-   - 在 Policies 中新增一条规则，Rule 选择对路径 `/api/github/webhook` 设为 `Bypass`（放行 GitHub 服务器的自动化推送）
-5. 保存生效！全部流程均在网页点击完成，零命令行负担。
+   - **Configure rules**：
+     - **Include** -> **Selector** 选择 `Emails`
+     - **Value** 填入你的唯一管理员邮箱：`trpai_bot@outlook.com`
+4. **★ 关键步骤：放行 GitHub Webhook 自动化接口 (Bypass 策略)**：
+   - 在已创建应用的 **Policies** 列表中，点击 **Add a policy**：
+     - **Policy name**：`Bypass Webhook`
+     - **Action**：选择 `Bypass`（跳过认证）
+     - **Configure rules**：Include -> Selector 选择 `Everyone`
+     - **Additional settings**：添加 Path 规则，匹配 `/api/github/webhook`
+5. 保存生效！全部流程均在网页点击完成，零命令行负担。任何人访问前后台需邮箱验证码，而 GitHub Webhook 请求直通验证。
 
 ---
 

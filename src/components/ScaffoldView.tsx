@@ -230,7 +230,18 @@ async function verifyGitHubSignature(rawBody: string, signature: string | null, 
 1. 打开你的 GitHub 项目仓库 -> Settings -> Webhooks -> 点击 Add webhook。
 2. Payload URL 填写你的 Pages 网址加 /api/github/webhook。
 3. Content type 选 application/json，Secret 填入第三步设置的密钥。
-4. 勾选 Pushes 和 Releases 事件 -> 保存即可！`,
+4. 勾选 Pushes 和 Releases 事件 -> 保存即可！
+
+## 第六步：在 Cloudflare 图形界面配置 Zero Trust 单用户保护 (Access)
+1. 点击左侧「Zero Trust」->「Access」->「Applications」->「Add an application」。
+2. 选择「Self-hosted（自托管应用）」：
+   - Application name 填: airam Edge Protection
+   - Application domain 填你的 Pages 域名 (如 airam.pages.dev)
+3. 策略规则 (Policy)：
+   - Action 选 Allow
+   - Include -> Emails 填你的管理员邮箱: trpai_bot@outlook.com
+4. 路径放行 (Bypass)：
+   - 为 /api/github/webhook 添加一条 Bypass 策略，允许 GitHub Webhook 自动化免密推送！`,
     }
   };
 
