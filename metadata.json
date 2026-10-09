@@ -1,0 +1,6 @@
+{
+  "name": "DevKnowledge OS | 个人研发知识中枢与架构实施方案",
+  "description": "基于 Cloudflare Workers + D1 + GitHub 自动同步的单用户个人研发知识中枢系统，包含架构设计稿、实施文档与实机工作台。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

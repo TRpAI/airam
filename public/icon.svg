@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Outer Rounded Square -->
+  <rect width="512" height="512" rx="128" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#27272a" stroke-width="8"/>
+  
+  <!-- Modern DevHub Logo Geometry: Terminal Prompt + Git Node Network -->
+  <!-- Git Branch Connection -->
+  <path d="M192 144 L192 368" stroke="#52525b" stroke-width="32" stroke-linecap="round"/>
+  <path d="M192 256 C 256 256, 320 224, 320 180" fill="none" stroke="#52525b" stroke-width="32" stroke-linecap="round"/>
+  
+  <!-- Git Nodes -->
+  <circle cx="192" cy="144" r="44" fill="#fafafa"/>
+  <circle cx="192" cy="368" r="44" fill="url(#accent)"/>
+  <circle cx="320" cy="180" r="36" fill="#fafafa"/>
+
+  <!-- Code / Edge Terminal Indicator -->
+  <path d="M304 316 L352 344 L304 372" fill="none" stroke="#34d399" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="368" y1="384" x2="408" y2="384" stroke="#71717a" stroke-width="24" stroke-linecap="round"/>
+</svg>

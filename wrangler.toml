@@ -1,0 +1,17 @@
+name = "airam"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "dist"
+
+# 环境变量 (Environment Variables)
+[vars]
+ENVIRONMENT = "production"
+ENABLE_R2_STORAGE = "false"
+
+# D1 数据库推荐直接在 Cloudflare 控制台图形界面绑定：
+# 进入 Pages 项目 -> Settings -> Functions -> D1 database bindings -> Add binding (Variable: DB -> airam-db)
+# 若希望通过 wrangler.toml 绑定，填入实际 D1 UUID 后取消下方注释：
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "airam-db"
+# database_id = "YOUR_D1_DATABASE_ID"
+
