@@ -1,4 +1,4 @@
-# airam - 边缘神经知识中枢 (Edge Neural Dev Knowledge Hub)
+# AIram - 边缘神经知识中枢 (Edge Neural Dev Knowledge Hub)
 
 > 基于 **Cloudflare Pages + Workers + D1 (SQLite) + GitHub 神经双向同步** 的个人研发知识中枢与架构控制台。
 > 零运维负担、全球边缘毫秒级响应、FTS5 全文检索引擎、Zero Trust 军工级单用户保护。
@@ -29,7 +29,7 @@
   - **Cloudflare D1**：分布式边缘 SQL 数据库，支持原生 SQLite FTS5 全文索引。
   - **可选 Cloudflare R2**：海量架构图元及备份持久化。
 - **自动同步层 (Sync)**：GitHub Webhook + HMAC-SHA256 签名验签，自动解析仓库代码、Releases 与 Markdown 文档。
-- **安全防护层 (Security)**：Cloudflare Zero Trust Access，指定所有者邮箱（`trpai_bot@outlook.com`）一次性动态验证码 (OTP) 阻断任何未授权访问。
+- **安全防护层 (Security)**：Cloudflare Zero Trust Access，指定所有者邮箱（`osahermes@gmail.com`）一次性动态验证码 (OTP) 阻断任何未授权访问。
 
 ---
 
@@ -186,7 +186,7 @@ airam 需要读取你的个人代码仓库文档、分支信息及 Release 发�
   - **Configure rules**（配置放行条件）：
     - 在 **Include** 下拉框中：
     - **Selector** 选择：`Emails`
-    - **Value** 填入你的唯一管理员邮箱：`trpai_bot@outlook.com`
+    - **Value** 填入你的唯一管理员邮箱：`osahermes@gmail.com`
 - 点击右上角 **Next** -> 点击 **Add application** 保存。
 
 #### 5. ★ 极其重要：放行 Webhook 自动化路由 (Bypass 策略) ★
@@ -203,7 +203,7 @@ airam 需要读取你的个人代码仓库文档、分支信息及 Release 发�
      - **Operator** 选择 `is` 或 `starts with`
      - **Value** 输入：`/api/github/webhook`
 3. 保存该策略，并确保该策略在列表中生效。
-4. **效果**：任何人访问 `https://airam.pages.dev` 前台和后台都需要向 `trpai_bot@outlook.com` 接收 6 位邮箱验证码；而来自 GitHub 服务器的 Webhook 能够顺畅直通边缘，由系统的 HMAC-SHA256 算法安全校验！
+4. **效果**：任何人访问 `https://airam.pages.dev` 前台和后台都需要向 `osahermes@gmail.com` 接收 6 位邮箱验证码；而来自 GitHub 服务器的 Webhook 能够顺畅直通边缘，由系统的 HMAC-SHA256 算法安全校验！
 
 ---
 
@@ -253,10 +253,18 @@ npx wrangler pages deploy dist --project-name=airam
 - **解决办法**：检查两端配置的 Secret 字符串是否完全一致（注意不要有多余空格）。
 
 ### Q4: 收到 Cloudflare Zero Trust 拦截页面怎么办？
-- 输入绑定的授权邮箱 `trpai_bot@outlook.com`，点击获取验证码，前往 Outlook 邮箱查收 6 位数字验证码填入即可顺利进入。
+- 输入绑定的授权邮箱 `osahermes@gmail.com`，点击获取验证码，前往 Gmail 邮箱查收 6 位数字验证码填入即可顺利进入。
+
+### Q5: 登录用的邮箱必须是 GitHub 的账号邮箱吗？
+- **完全不需要！两者没有任何绑定关系，任何邮箱都可以**。
+- **原因解析**：
+  - **Zero Trust (Cloudflare Access)** 的身份验证是在 Cloudflare 边缘独立完成的（通过向你指定的邮箱发送 One-Time PIN 验证码）。
+  - **GitHub Token (PAT)** 是程序用来在后台读取/写入 GitHub 仓库代码与文件的机器通信凭证。
+  - 因此你在 Zero Trust 策略里填写的邮箱（如 `osahermes@gmail.com`、Outlook 或企业邮箱）**纯粹是用于接收登录 PIN 码**，与你的 GitHub 账号邮箱完全解耦。
 
 ---
 
 ## License
 
 MIT License © 2026 airam
+

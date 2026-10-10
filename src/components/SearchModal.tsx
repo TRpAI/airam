@@ -108,43 +108,43 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Bar */}
-        <div className="flex items-center px-3.5 py-2.5 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center px-3.5 py-3 sm:py-2.5 border-b border-zinc-200 dark:border-zinc-800">
           <Search className="h-4 w-4 text-zinc-400 mr-2.5 shrink-0" />
           <input
             type="text"
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="全文检索 (如: D1, Workers, Webhook, 栖月)..."
-            className="w-full bg-transparent text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none font-mono"
+            placeholder="全文检索 (如: D1, Workers, Webhook)..."
+            className="w-full bg-transparent text-sm sm:text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none font-mono"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 min-h-[32px] min-w-[32px] flex items-center justify-center active:scale-95"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           )}
           <button
             onClick={onClose}
-            className="ml-2 text-[10px] px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 font-mono"
+            className="ml-2 text-[10px] px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 font-mono active:scale-95"
           >
-            ESC
+            关闭
           </button>
         </div>
 
         {/* Filter Bar */}
-        <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-950/40 text-[11px] font-mono">
-          <div className="flex gap-1">
+        <div className="flex items-center justify-between px-3.5 py-2 sm:py-1.5 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-950/40 text-xs sm:text-[11px] font-mono">
+          <div className="flex gap-1.5 sm:gap-1">
             {(['all', 'knowledge', 'projects', 'repos'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterType(tab)}
-                className={`px-2 py-0.5 rounded transition-colors ${
+                className={`px-2.5 py-1 sm:py-0.5 rounded transition-colors ${
                   filterType === tab
-                    ? 'bg-zinc-200/80 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium'
-                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 bg-zinc-100 dark:bg-zinc-800/60'
                 }`}
               >
                 {tab === 'all' && '全部'}

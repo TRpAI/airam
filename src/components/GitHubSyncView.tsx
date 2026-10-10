@@ -112,7 +112,7 @@ export const GitHubSyncView: React.FC<GitHubSyncViewProps> = ({
         <button
           onClick={onSyncAll}
           disabled={isSyncing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-mono font-medium hover:opacity-90 transition-opacity disabled:opacity-50 self-start sm:self-auto"
+          className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-mono font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 min-h-[38px]"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
           <span>{isSyncing ? '比对中...' : '增量同步全部'}</span>
@@ -138,12 +138,12 @@ export const GitHubSyncView: React.FC<GitHubSyncViewProps> = ({
                 value={newRepoInput}
                 onChange={(e) => setNewRepoInput(e.target.value)}
                 placeholder="例如: honojs/hono"
-                className="flex-1 px-3 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
+                className="flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm sm:text-xs focus:outline-none focus:border-zinc-500 min-h-[40px]"
               />
               <button
                 onClick={handleFetchAndAdd}
                 disabled={isFetchingNew || !newRepoInput.trim()}
-                className="px-3 py-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0"
+                className="px-3.5 py-2 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 shrink-0 min-h-[40px]"
               >
                 {isFetchingNew ? '拉取中' : '纳管'}
               </button>

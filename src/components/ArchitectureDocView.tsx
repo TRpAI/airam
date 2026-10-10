@@ -10,13 +10,9 @@ import {
 } from 'lucide-react';
 import { architectureDocs } from '../data/architectureDocs';
 
-interface ArchitectureDocViewProps {
-  onOpenScaffoldTab: () => void;
-}
+interface ArchitectureDocViewProps {}
 
-export const ArchitectureDocView: React.FC<ArchitectureDocViewProps> = ({
-  onOpenScaffoldTab,
-}) => {
+export const ArchitectureDocView: React.FC<ArchitectureDocViewProps> = () => {
   const [activeSectionId, setActiveSectionId] = useState<string>(architectureDocs[0].id);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
@@ -46,15 +42,15 @@ export const ArchitectureDocView: React.FC<ArchitectureDocViewProps> = ({
     <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in duration-150">
       
       {/* Mobile Chapter Picker (< lg) */}
-      <div className="lg:hidden border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 bg-white dark:bg-zinc-900/40">
-        <label className="flex items-center gap-1.5 text-xs font-mono font-medium text-zinc-500 mb-1.5">
-          <List className="h-3.5 w-3.5" />
+      <div className="lg:hidden border border-zinc-200 dark:border-zinc-800 rounded-lg p-3.5 bg-white dark:bg-zinc-900/40">
+        <label className="flex items-center gap-1.5 text-xs font-mono font-medium text-zinc-500 mb-2">
+          <List className="h-4 w-4" />
           <span>选择设计规范章节:</span>
         </label>
         <select
           value={activeSectionId}
           onChange={(e) => setActiveSectionId(e.target.value)}
-          className="w-full px-2.5 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-xs font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none"
+          className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-xs font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none min-h-[40px]"
         >
           {architectureDocs.map((s) => (
             <option key={s.id} value={s.id}>
@@ -87,19 +83,6 @@ export const ArchitectureDocView: React.FC<ArchitectureDocViewProps> = ({
               </button>
             ))}
           </nav>
-
-          <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
-            <button
-              onClick={onOpenScaffoldTab}
-              className="w-full flex items-center justify-between p-2 rounded text-xs font-mono text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <span className="flex items-center gap-1.5">
-                <FileCode className="h-3.5 w-3.5" />
-                <span>查看配置脚手架</span>
-              </span>
-              <ArrowRight className="h-3 w-3" />
-            </button>
-          </div>
         </div>
 
         {/* 7-Day Checklist Interactive Widget */}

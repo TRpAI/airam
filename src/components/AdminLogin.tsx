@@ -57,7 +57,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
               </svg>
             </div>
             <h1 className="text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
-              airam 后台管理登入
+              AIram 后台管理登入
             </h1>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               单用户所有者安全边界 · GitHub 身份鉴权
@@ -67,18 +67,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4 font-mono text-xs">
             <div>
-              <label className="block text-zinc-500 mb-1">GitHub 账号用户名</label>
+              <label className="block text-zinc-500 mb-1.5">GitHub 账号用户名</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="例如: osahermes"
-                className="w-full px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
+                className="w-full px-3 py-2.5 sm:py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm sm:text-xs focus:outline-none focus:border-zinc-500 min-h-[42px]"
               />
             </div>
 
             <div>
-              <label className="flex items-center justify-between text-zinc-500 mb-1">
+              <label className="flex items-center justify-between text-zinc-500 mb-1.5">
                 <span>Personal Access Token</span>
                 <span className="text-[10px] text-zinc-400">(可选 免API限流)</span>
               </label>
@@ -87,12 +87,12 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
+                className="w-full px-3 py-2.5 sm:py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm sm:text-xs focus:outline-none focus:border-zinc-500 min-h-[42px]"
               />
             </div>
 
             {error && (
-              <div className="p-2.5 rounded bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 text-xs flex items-center gap-2">
+              <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 text-xs flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -101,7 +101,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium hover:opacity-90 transition-opacity disabled:opacity-50 text-xs"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 text-xs min-h-[44px]"
             >
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
               <span>{loading ? '正在验证身份...' : '以 GitHub Owner 身份登入'}</span>

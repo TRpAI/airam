@@ -33,9 +33,6 @@ import {
   ArchitectureDocView 
 } from './components/ArchitectureDocView';
 import { 
-  ScaffoldView 
-} from './components/ScaffoldView';
-import { 
   SearchModal 
 } from './components/SearchModal';
 
@@ -56,7 +53,8 @@ import {
   FileText, 
   FolderGit2, 
   GitBranch, 
-  BookOpen 
+  BookOpen,
+  Database
 } from 'lucide-react';
 
 export default function App() {
@@ -273,6 +271,70 @@ export default function App() {
             ) : (
               <div className="space-y-6">
                 
+                {/* 1. 研发知识中枢核心卡片 (无右上角多余功能按钮，纯净简洁) */}
+                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 sm:p-6 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-base sm:text-xl font-bold font-mono tracking-tight text-zinc-900 dark:text-zinc-100">
+                          研发知识中枢
+                        </h1>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          D1 边缘在线
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                        以 GitHub 代码资产为真实数据源的单用户边缘知识中枢 · Cloudflare D1 驱动
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 状态与统计摘要行 */}
+                  <div className="mt-3.5 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-zinc-500">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px]">
+                      <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">TypeScript</span>
+                      <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">Cloudflare D1</span>
+                      <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">SQLite FTS5</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[11px]">
+                      <span>条目: {knowledge.length}</span>
+                      <span>·</span>
+                      <span>项目: {projects.length}</span>
+                      <span>·</span>
+                      <span>仓库: {repos.length}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. 后台导航栏 (从页脚移至研发知识中枢卡片下方，支持移动端横滑与桌面端) */}
+                <div className="flex items-center space-x-1.5 text-xs font-mono overflow-x-auto scrollbar-none pb-1 sm:pb-0 -mx-1 px-1 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                  {[
+                    { id: 'dashboard' as MainNavTab, label: '概览', icon: LayoutDashboard },
+                    { id: 'knowledge' as MainNavTab, label: `知识手记 (${knowledge.length})`, icon: FileText },
+                    { id: 'projects' as MainNavTab, label: `研发项目 (${projects.length})`, icon: FolderGit2 },
+                    { id: 'github' as MainNavTab, label: `同步审计 (${repos.length})`, icon: GitBranch },
+                    { id: 'architecture' as MainNavTab, label: '系统架构', icon: BookOpen },
+                    { id: 'backup' as MainNavTab, label: '数据备份', icon: Database },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all whitespace-nowrap min-h-[34px] text-xs font-mono active:scale-95 ${
+                          isActive
+                            ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs'
+                            : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 bg-zinc-100/60 dark:bg-zinc-800/40 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {/* Active Backstage Tab Content */}
                 {activeTab === 'dashboard' && (
                   <DashboardView
@@ -327,13 +389,7 @@ export default function App() {
                 )}
 
                 {activeTab === 'architecture' && (
-                  <ArchitectureDocView
-                    onOpenScaffoldTab={() => setActiveTab('scaffold')}
-                  />
-                )}
-
-                {activeTab === 'scaffold' && (
-                  <ScaffoldView />
+                  <ArchitectureDocView />
                 )}
 
                 {activeTab === 'backup' && (
@@ -352,36 +408,6 @@ export default function App() {
         )}
 
       </main>
-
-      {/* Mobile Bottom Navigation Bar (Shown in Admin Mode when logged in) */}
-      {viewMode === 'admin' && isAuthenticated && (
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-950/95 border-t border-zinc-200 dark:border-zinc-800 backdrop-blur-md flex items-center justify-around py-2 px-1">
-          {[
-            { id: 'dashboard' as MainNavTab, label: '概览', icon: LayoutDashboard },
-            { id: 'knowledge' as MainNavTab, label: '知识', icon: FileText },
-            { id: 'projects' as MainNavTab, label: '项目', icon: FolderGit2 },
-            { id: 'github' as MainNavTab, label: '同步', icon: GitBranch },
-            { id: 'architecture' as MainNavTab, label: '架构', icon: BookOpen },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`flex flex-col items-center justify-center py-1 px-3 min-w-[56px] min-h-[44px] transition-colors rounded ${
-                  isActive
-                    ? 'text-zinc-900 dark:text-zinc-100 font-semibold'
-                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="text-[10px] font-mono mt-0.5">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      )}
 
       {/* Global Interactive Search Modal (FTS5 Search) */}
       <SearchModal
@@ -405,23 +431,22 @@ export default function App() {
       {/* Global Keyboard Shortcut for Ctrl+K */}
       <GlobalKeyboardListener onOpenSearch={() => setIsSearchOpen(true)} />
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-200 dark:border-zinc-800/80 py-5 text-center text-xs font-mono text-zinc-400 dark:text-zinc-500">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>airam · 边缘神经知识中枢 (Cloudflare Workers + D1)</span>
-          <div className="flex items-center gap-3">
+      {/* Fixed Footer (前后台一致常驻固定页脚) */}
+      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800/80 py-2.5 px-4 text-center text-xs font-mono text-zinc-400 dark:text-zinc-500 shadow-xs">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2">
+          <span className="truncate">AIram · 边缘神经知识中枢 (Cloudflare Workers + D1)</span>
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={() => setViewMode(viewMode === 'public' ? 'admin' : 'public')}
-              className="hover:text-zinc-900 dark:hover:text-zinc-100 underline"
+              className="hover:text-zinc-900 dark:text-zinc-100 underline decoration-zinc-400/50 hover:decoration-zinc-900 dark:hover:decoration-zinc-100 transition-colors"
             >
               切换至{viewMode === 'public' ? '管理后台' : '前台展示'}
             </button>
-            <span>·</span>
+            <span className="text-zinc-300 dark:text-zinc-700">·</span>
             <span>R2: {r2Enabled ? '已开启' : '关闭 (纯 D1 极简)'}</span>
           </div>
         </div>
       </footer>
-
     </div>
   );
 }

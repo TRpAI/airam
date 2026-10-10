@@ -1,6 +1,6 @@
-# airam 部署与上线指南 (Cloudflare 全栈)
+# AIram 部署与上线指南 (Cloudflare 全栈)
 
-本文档提供将 **airam**（边缘神经研发记忆中枢）部署到 Cloudflare 全球边缘平台的完整指导，**提供 100% 纯控制台图形界面部署（免命令行）** 与 **Wrangler 命令行部署** 两种方案。
+本文档提供将 **AIram**（边缘神经研发记忆中枢）部署到 Cloudflare 全球边缘平台的完整指导，**提供 100% 纯控制台图形界面部署（免命令行）** 与 **Wrangler 命令行部署** 两种方案。
 
 ---
 
@@ -99,7 +99,7 @@ airam 已内置身份鉴权守卫。若希望在网络边缘阻断未经授权�
    - **Action**：选择 `Allow`
    - **Configure rules**：
      - **Include** -> **Selector** 选择 `Emails`
-     - **Value** 填入你的唯一管理员邮箱：`trpai_bot@outlook.com`
+     - **Value** 填入你的唯一管理员邮箱：`osahermes@gmail.com`
 4. **★ 关键步骤：放行 GitHub Webhook 自动化接口 (Bypass 策略)**：
    - 在已创建应用的 **Policies** 列表中，点击 **Add a policy**：
      - **Policy name**：`Bypass Webhook`

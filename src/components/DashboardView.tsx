@@ -3,7 +3,6 @@ import {
   FileText, 
   FolderGit2, 
   GitBranch, 
-  RefreshCw, 
   Clock, 
   ArrowRight,
   Zap,
@@ -21,8 +20,8 @@ interface DashboardViewProps {
   onNavigateToGitHub: () => void;
   onSelectKnowledgeItem: (id: string) => void;
   onSelectProject: (id: string) => void;
-  onTriggerQuickSync: () => void;
-  isSyncing: boolean;
+  onTriggerQuickSync?: () => void;
+  isSyncing?: boolean;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -35,8 +34,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToGitHub,
   onSelectKnowledgeItem,
   onSelectProject,
-  onTriggerQuickSync,
-  isSyncing,
 }) => {
   const totalStars = repos.reduce((acc, r) => acc + r.stars, 0);
   const activeProjectsCount = projects.filter((p) => p.status === 'active').length;
@@ -44,42 +41,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-150">
       
-      {/* Top Quiet Minimal Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 font-mono">
-            研发知识中枢
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            以 GitHub 代码资产为真实数据源的单用户边缘知识中枢 · Cloudflare D1 驱动
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onTriggerQuickSync}
-            disabled={isSyncing}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-mono font-medium rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? '同步中...' : '增量同步'}</span>
-          </button>
-        </div>
-      </div>
-
       {/* Metrics Row - Minimal 4-Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         
         {/* Knowledge */}
         <div 
           onClick={onNavigateToKnowledge}
-          className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer"
+          className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 active:scale-[0.98] transition-all cursor-pointer"
         >
           <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">知识条目 (D1)</div>
-          <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1.5">
+          <div className="text-xl sm:text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1">
             {knowledge.length}
           </div>
-          <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
             收藏 {knowledge.filter(k => k.is_favorite).length} 篇
           </div>
         </div>
@@ -87,13 +61,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Projects */}
         <div 
           onClick={onNavigateToProjects}
-          className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer"
+          className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 active:scale-[0.98] transition-all cursor-pointer"
         >
           <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">研发项目卡片</div>
-          <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1.5">
+          <div className="text-xl sm:text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1">
             {projects.length}
           </div>
-          <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
             活跃 {activeProjectsCount} 个
           </div>
         </div>
@@ -101,13 +75,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* GitHub Repos */}
         <div 
           onClick={onNavigateToGitHub}
-          className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer"
+          className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 active:scale-[0.98] transition-all cursor-pointer"
         >
           <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">GitHub 仓库</div>
-          <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1.5">
+          <div className="text-xl sm:text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1">
             {repos.length}
           </div>
-          <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
+          <div className="text-[10px] sm:text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
             ⭐ {totalStars} 获星
           </div>
         </div>
@@ -115,13 +89,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Webhook Events */}
         <div 
           onClick={onNavigateToGitHub}
-          className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer"
+          className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 hover:border-zinc-400 dark:hover:border-zinc-700 active:scale-[0.98] transition-all cursor-pointer"
         >
           <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">同步审计事件</div>
-          <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1.5">
+          <div className="text-xl sm:text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1">
             {syncLogs.length}
           </div>
-          <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 truncate">
+          <div className="text-[10px] sm:text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 truncate">
             {syncLogs[0] ? new Date(syncLogs[0].created_at).toLocaleTimeString() : '无记录'}
           </div>
         </div>

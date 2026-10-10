@@ -1,11 +1,11 @@
 /**
- * airam - Cloudflare D1 数据库初始化迁移 SQL
+ * AIram - Cloudflare D1 数据库初始化迁移 SQL
  * 对应物理文件路径: migrations/0001_init.sql
  */
 export const MIGRATION_SQL_PATH = 'migrations/0001_init.sql';
 
 export const MIGRATION_SQL = `-- ==============================================================
--- airam 边缘神经知识中枢 - Cloudflare D1 初始化迁移脚本
+-- AIram 边缘神经知识中枢 - Cloudflare D1 初始化迁移脚本
 -- 物理文件路径: migrations/0001_init.sql
 -- ==============================================================
 

@@ -73,9 +73,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
           {/* Status Filter */}
-          <div className="flex rounded border border-zinc-200 dark:border-zinc-800 p-0.5 text-xs font-mono bg-white dark:bg-zinc-900">
+          <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-800 p-0.5 text-xs font-mono bg-white dark:bg-zinc-900">
             {[
               { id: 'all', label: '全部' },
               { id: 'active', label: '活跃' },
@@ -84,7 +84,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               <button
                 key={f.id}
                 onClick={() => setFilterStatus(f.id)}
-                className={`px-2 py-0.5 rounded transition-colors ${
+                className={`px-2.5 py-1.5 sm:py-0.5 rounded-md transition-colors min-h-[32px] sm:min-h-0 ${
                   filterStatus === f.id
                     ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold'
                     : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -97,7 +97,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
 
           <button
             onClick={handleCreateNew}
-            className="flex items-center gap-1 px-3 py-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-mono font-medium hover:opacity-90 transition-opacity"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-mono font-medium hover:opacity-90 active:scale-95 transition-all min-h-[34px]"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>新建项目</span>

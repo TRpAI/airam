@@ -7,22 +7,15 @@ import {
   Star, 
   Search, 
   ArrowRight,
-  Shield,
   Layers,
   Sparkles,
   BookOpen,
   Copy,
   Check,
-  Clock,
-  Database,
-  Download,
-  Terminal,
-  Info
+  Clock
 } from 'lucide-react';
 import { KnowledgeItem, Project, GitHubRepository } from '../types';
 import { GitHubUser } from '../types/auth';
-import { PWAInstallButton } from './PWAInstallButton';
-import { MIGRATION_SQL } from '../data/migrationSql';
 
 interface PublicShowcaseProps {
   knowledge: KnowledgeItem[];
@@ -41,28 +34,9 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
   onOpenSearch,
   user,
 }) => {
-  const [activeSection, setActiveSection] = useState<'all' | 'projects' | 'knowledge' | 'migrations' | 'deploy'>('all');
+  const [activeSection, setActiveSection] = useState<'all' | 'projects' | 'knowledge'>('all');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
-
-  const handleDownloadSql = () => {
-    const blob = new Blob([MIGRATION_SQL], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '0001_init.sql';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(MIGRATION_SQL);
-    setCopiedSql(true);
-    setTimeout(() => setCopiedSql(false), 2000);
-  };
 
   // Selected note for reader modal/view
   const activeDoc = useMemo(() => {
@@ -82,90 +56,65 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
     <div className="space-y-8 animate-in fade-in duration-150">
       
       {/* 1. Developer Hero Card (Minimalist & Punchy) */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-6 sm:p-8 space-y-4">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 sm:p-7 space-y-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-full border border-zinc-200 dark:border-zinc-800 overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-mono font-bold text-sm text-zinc-900 dark:text-zinc-100">
+          <div className="flex items-start gap-3.5 sm:gap-4">
+            <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-full border border-zinc-200 dark:border-zinc-800 overflow-hidden shrink-0 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-mono font-bold text-sm text-zinc-900 dark:text-zinc-100 shadow-xs">
               {user ? (
                 <img src={user.avatar_url} alt={user.login} className="h-full w-full object-cover" />
               ) : (
-                <span className="text-emerald-500">DH</span>
+                <span className="text-emerald-500 font-bold">AI</span>
               )}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold font-mono text-zinc-900 dark:text-zinc-100">
+                <h1 className="text-base sm:text-xl font-bold font-mono text-zinc-900 dark:text-zinc-100">
                   {user ? user.name : 'Osa Hermes'}
                 </h1>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded border border-zinc-200 dark:border-zinc-700 text-zinc-500">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 text-zinc-500">
                   @{user ? user.login : 'osahermes'}
                 </span>
               </div>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 max-w-xl leading-relaxed">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
                 全栈独立开发者 · 聚焦于 Cloudflare Workers、边缘 Serverless 架构与高质量研发资产沉淀。
               </p>
             </div>
           </div>
-
-          {/* Right Action: PWA Install, D1 SQL & Go to Admin */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              onClick={() => setActiveSection('migrations')}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-mono transition-colors"
-              title="查看 Cloudflare D1 数据库迁移文件 (migrations/0001_init.sql)"
-            >
-              <Database className="h-3.5 w-3.5" />
-              <span>D1 迁移脚本</span>
-            </button>
-            <PWAInstallButton variant="minimal" />
-            <button
-              onClick={onGoToAdmin}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-mono font-medium hover:opacity-90 transition-opacity"
-            >
-              <Shield className="h-3.5 w-3.5" />
-              <span>管理后台</span>
-            </button>
-          </div>
         </div>
 
         {/* Public Stack & Stats Inline Bar */}
-        <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-zinc-500">
-          <div className="flex items-center gap-3">
-            <span>TypeScript</span>
-            <span>·</span>
-            <span>Cloudflare D1</span>
-            <span>·</span>
-            <span>Edge Workers</span>
-            <span>·</span>
-            <span>React</span>
+        <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-zinc-500">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">TypeScript</span>
+            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">Cloudflare D1</span>
+            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">Workers</span>
+            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">React</span>
           </div>
-          <div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-400">
-            <span>⭐ {totalStars} GitHub Stars</span>
+          <div className="flex items-center gap-2.5 sm:gap-3 text-zinc-600 dark:text-zinc-400 text-[11px] sm:text-xs">
+            <span>⭐ {totalStars} Stars</span>
             <span>·</span>
-            <span>{projects.length} 个公开项目</span>
+            <span>{projects.length} 个项目</span>
             <span>·</span>
-            <span>{knowledge.length} 篇知识手记</span>
+            <span>{knowledge.length} 篇手记</span>
           </div>
         </div>
       </div>
 
-      {/* 2. Navigation Pills: All / Projects / Knowledge / Migrations / Deploy */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2 gap-2">
-        <div className="flex items-center space-x-1 text-xs font-mono overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+      {/* 2. Navigation Pills: All / Projects / Knowledge */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2 gap-2.5">
+        <div className="flex items-center space-x-1.5 text-xs font-mono overflow-x-auto scrollbar-none pb-1 sm:pb-0 -mx-1 px-1">
           {[
             { id: 'all', label: '全部精选' },
             { id: 'projects', label: `开源项目 (${projects.length})` },
             { id: 'knowledge', label: `知识手记 (${knowledge.length})` },
-            { id: 'migrations', label: 'D1 数据库迁移 (0001_init.sql)' },
-            { id: 'deploy', label: '控制台部署教程' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveSection(tab.id as any)}
-              className={`px-3 py-1 rounded transition-colors whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-md transition-colors whitespace-nowrap min-h-[32px] text-xs ${
                 activeSection === tab.id
-                  ? 'bg-zinc-200/80 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 bg-zinc-100/60 dark:bg-zinc-800/40'
               }`}
             >
               {tab.label}
@@ -322,165 +271,14 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
         </div>
       )}
 
-      {/* 5. Cloudflare D1 Database Migration (migrations/0001_init.sql) */}
-      {activeSection === 'migrations' && (
-        <div className="space-y-4 animate-in fade-in duration-150">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-            <div>
-              <h2 className="text-sm sm:text-base font-bold font-mono text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                <Database className="h-4 w-4 text-emerald-500" />
-                <span>Cloudflare D1 数据库初始化迁移脚本</span>
-              </h2>
-              <p className="text-xs font-mono text-zinc-500 dark:text-zinc-400 mt-1">
-                物理文件路径：<span className="text-emerald-600 dark:text-emerald-400 font-semibold">migrations/0001_init.sql</span>（项目根目录）
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleCopySql}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-mono font-medium hover:opacity-90 transition-opacity"
-              >
-                {copiedSql ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>已复制全部 SQL</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    <span>一键复制 SQL</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleDownloadSql}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-mono text-zinc-800 dark:text-zinc-200 transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>下载 .sql 文件</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Guide Card */}
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-4 space-y-2 text-xs font-mono text-zinc-600 dark:text-zinc-300">
-            <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-              <Info className="h-4 w-4 text-emerald-500" />
-              <span>Cloudflare 网页控制台 3 步执行说明 (100% 免命令行)：</span>
-            </div>
-            <ol className="list-decimal list-inside space-y-1.5 pl-1 leading-relaxed text-zinc-600 dark:text-zinc-400">
-              <li>打开 <a href="https://dash.cloudflare.com" target="_blank" rel="noreferrer" className="text-emerald-500 underline">Cloudflare 控制台</a>，进入 <strong>Storage & Databases</strong> → <strong>D1 SQL Database</strong>。</li>
-              <li>点击创建好的 <strong>airam-db</strong>，切换到 <strong>Console</strong>（控制台）选项卡。</li>
-              <li>点击上方 <strong>「一键复制 SQL」</strong> 按钮，粘贴到网页控制台输入框，点击右下角 <strong>Execute</strong> 执行建表！</li>
-            </ol>
-          </div>
-
-          {/* SQL Code Box */}
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden">
-            <div className="px-4 py-2 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-xs font-mono text-zinc-500">
-              <span>migrations/0001_init.sql (标准 SQLite D1 表结构 + FTS5 全文索引)</span>
-              <span>126 行 SQL</span>
-            </div>
-            <div className="p-4 overflow-x-auto max-h-[500px] font-mono text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed bg-zinc-50 dark:bg-zinc-950">
-              <pre className="whitespace-pre">{MIGRATION_SQL}</pre>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Cloudflare GUI Console Deployment Guide */}
-      {activeSection === 'deploy' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3">
-            <h2 className="text-sm sm:text-base font-bold font-mono text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-emerald-500" />
-              <span>airam 纯控制台图形界面部署指南 (100% 免命令行)</span>
-            </h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              只需在 Cloudflare 控制台与 GitHub 网页操作，全程鼠标点击即可上线，无需本地终端。
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 font-mono text-xs">
-            {/* Step 1 */}
-            <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 space-y-2">
-              <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold">
-                <span className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[11px]">1</span>
-                <span>托管代码至 GitHub</span>
-              </div>
-              <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed pl-7">
-                登录 GitHub，新建仓库名为 <code>airam</code>（公开或私有均可），将本项目代码上传至该仓库。
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 space-y-2">
-              <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold">
-                <span className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[11px]">2</span>
-                <span>在 Cloudflare 控制台创建 D1 数据库并执行迁移</span>
-              </div>
-              <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed pl-7">
-                在控制台左侧点击 <strong>Storage & Databases → D1 SQL Database</strong> → <strong>Create database</strong>，输入 <code>airam-db</code>。<br/>
-                进入该数据库的 <strong>Console</strong>，复制项目根目录下的 <code>migrations/0001_init.sql</code> 粘贴并点击 <strong>Execute</strong> 运行建表。
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 space-y-2">
-              <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold">
-                <span className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[11px]">3</span>
-                <span>创建 Pages 网页应用并连接 Git</span>
-              </div>
-              <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed pl-7">
-                进入 <strong>Workers & Pages → Create application → Pages → Connect to Git</strong>，选择 <code>airam</code> 仓库。<br/>
-                - <strong>Framework preset</strong>: 选择 <code>Vite</code><br/>
-                - <strong>Build command</strong>: <code>npm run build</code><br/>
-                - <strong>Build output directory</strong>: <code>dist</code><br/>
-                在 Environment variables 中添加 <code>GITHUB_TOKEN</code> 和 <code>GITHUB_WEBHOOK_SECRET</code>，点击 <strong>Save and Deploy</strong>！
-              </p>
-            </div>
-
-            {/* Step 4 */}
-            <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 space-y-2">
-              <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold">
-                <span className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[11px]">4</span>
-                <span>在 Pages 设置中绑定 D1 数据库</span>
-              </div>
-              <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed pl-7">
-                进入 Pages 项目详情 → <strong>Settings → Functions → D1 database bindings</strong> → 点击 <strong>Add binding</strong>：<br/>
-                - Variable name: <code>DB</code> (大写)<br/>
-                - D1 database: 选择 <code>airam-db</code><br/>
-                保存后在 Deployments 选项卡重新触发部署一次即可生效。
-              </p>
-            </div>
-
-            {/* Step 5 */}
-            <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 space-y-2">
-              <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-bold">
-                <span className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[11px]">5</span>
-                <span>在 GitHub 配置 Webhook 实现推送自动同步</span>
-              </div>
-              <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed pl-7">
-                打开你的 GitHub 仓库 → <strong>Settings → Webhooks → Add webhook</strong>：<br/>
-                - Payload URL: 填入你的 Pages 网址加上 <code>/api/github/webhook</code><br/>
-                - Content type: <code>application/json</code><br/>
-                - 勾选 <strong>Pushes</strong> 与 <strong>Releases</strong> 事件，保存即可享受全自动资产归档！
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Article Reader Modal (Clean Minimalist Reader) */}
       {activeDoc && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-xs animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-zinc-950/70 backdrop-blur-xs animate-in fade-in"
           onClick={() => setSelectedDocId(null)}
         >
           <div 
-            className="w-full max-w-2xl rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl p-5 sm:p-7 space-y-4 max-h-[85vh] overflow-y-auto"
+            className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl p-4 sm:p-7 space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
@@ -490,14 +288,14 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleCopyCode(activeDoc.content)}
-                  className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 min-h-[36px] min-w-[36px] flex items-center justify-center active:scale-95"
                   title="复制 Markdown"
                 >
                   {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                 </button>
                 <button
                   onClick={() => setSelectedDocId(null)}
-                  className="text-xs font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                  className="text-xs font-mono px-2.5 py-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 min-h-[36px] flex items-center justify-center active:scale-95"
                 >
                   关闭 (ESC)
                 </button>

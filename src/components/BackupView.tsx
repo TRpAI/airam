@@ -95,7 +95,7 @@ export const BackupView: React.FC<BackupViewProps> = ({
 
           <button
             onClick={handleDownloadMarkdown}
-            className="w-full py-2 rounded border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-colors flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.99] flex items-center justify-center gap-1.5 min-h-[40px]"
           >
             <Download className="h-3.5 w-3.5" />
             <span>下载 Markdown (.md)</span>
@@ -119,7 +119,7 @@ export const BackupView: React.FC<BackupViewProps> = ({
 
           <button
             onClick={handleDownloadSql}
-            className="w-full py-2 rounded border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-colors flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.99] flex items-center justify-center gap-1.5 min-h-[40px]"
           >
             <Download className="h-3.5 w-3.5" />
             <span>下载 D1 SQL (.sql)</span>
@@ -143,7 +143,7 @@ export const BackupView: React.FC<BackupViewProps> = ({
 
           <button
             onClick={handleDownloadJson}
-            className="w-full py-2 rounded border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-colors flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.99] flex items-center justify-center gap-1.5 min-h-[40px]"
           >
             <Download className="h-3.5 w-3.5" />
             <span>下载 JSON (.json)</span>
