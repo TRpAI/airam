@@ -41,6 +41,9 @@ import {
 import { 
   AdminSubmissionsView 
 } from './components/AdminSubmissionsView';
+import { 
+  AdminSettingsView 
+} from './components/AdminSettingsView';
 import { useSubmissions } from './hooks/useSubmissions';
 
 import { 
@@ -61,7 +64,8 @@ import {
   FolderGit2, 
   GitBranch, 
   BookOpen,
-  Database
+  Database,
+  Sliders
 } from 'lucide-react';
 
 export default function App() {
@@ -71,10 +75,13 @@ export default function App() {
     user, 
     loginWithOAuth, 
     loginWithToken, 
-    loginWithGitHub, 
+    loginWithDemo, 
     logout, 
     loading: authLoading,
-    oauthStatus
+    oauthStatus,
+    resetAdminSeat,
+    saveCustomCredentials,
+    refreshOAuthStatus
   } = useAuth();
 
   // 核心前后台分离模式: 'public' (前台展示) | 'admin' (后台管理)
@@ -83,12 +90,54 @@ export default function App() {
   // 后台管理子导航
   const [activeTab, setActiveTab] = useState<MainNavTab>('dashboard');
 
+  // 生产环境规范：严格移除所有演示数据 (import.meta.env.PROD 状态或用户手动清理)
+  const isPurgedMode = import.meta.env.PROD || localStorage.getItem('airam_demo_purged') === 'true';
+
   // 全局核心状态
-  const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(initialKnowledgeItems);
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [repos, setRepos] = useState<GitHubRepository[]>(initialGitHubRepos);
-  const [syncLogs, setSyncLogs] = useState<SyncLog[]>(initialSyncLogs);
+  const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(() => {
+    if (isPurgedMode) return [];
+    try {
+      const saved = localStorage.getItem('airam_knowledge');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return initialKnowledgeItems;
+  });
+
+  const [projects, setProjects] = useState<Project[]>(() => {
+    if (isPurgedMode) return [];
+    try {
+      const saved = localStorage.getItem('airam_projects');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return initialProjects;
+  });
+
+  const [repos, setRepos] = useState<GitHubRepository[]>(() => {
+    if (isPurgedMode) return [];
+    try {
+      const saved = localStorage.getItem('airam_repos');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return initialGitHubRepos;
+  });
+
+  const [syncLogs, setSyncLogs] = useState<SyncLog[]>(() => {
+    if (isPurgedMode) return [];
+    return initialSyncLogs;
+  });
+
   const [tags] = useState<Tag[]>(initialTags);
+
+  const handlePurgeAllDemoData = () => {
+    localStorage.setItem('airam_demo_purged', 'true');
+    localStorage.removeItem('airam_knowledge');
+    localStorage.removeItem('airam_projects');
+    localStorage.removeItem('airam_repos');
+    setKnowledge([]);
+    setProjects([]);
+    setRepos([]);
+    setSyncLogs([]);
+  };
 
   // R2 可选项状态 (默认 false: 保持纯 D1 极简形态)
   const [r2Enabled, setR2Enabled] = useState<boolean>(false);
@@ -296,7 +345,7 @@ export default function App() {
               <AdminLogin
                 onLoginOAuth={loginWithOAuth}
                 onLoginToken={loginWithToken}
-                onLoginDemo={loginWithGitHub}
+                onLoginDemo={loginWithDemo}
                 loading={authLoading}
                 oauthStatus={oauthStatus}
                 onReturnToPublic={() => setViewMode('public')}
@@ -363,6 +412,7 @@ export default function App() {
                     { id: 'github' as MainNavTab, label: `同步审计 (${repos.length})`, icon: GitBranch },
                     { id: 'architecture' as MainNavTab, label: '系统架构', icon: BookOpen },
                     { id: 'backup' as MainNavTab, label: '数据备份', icon: Database },
+                    { id: 'settings' as MainNavTab, label: '系统设置', icon: Sliders },
                   ].map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -468,6 +518,20 @@ export default function App() {
                     syncLogs={syncLogs}
                     r2Enabled={r2Enabled}
                     setR2Enabled={setR2Enabled}
+                  />
+                )}
+
+                {activeTab === 'settings' && (
+                  <AdminSettingsView
+                    user={user}
+                    oauthStatus={oauthStatus}
+                    onRefreshOAuthStatus={refreshOAuthStatus}
+                    onResetAdmin={resetAdminSeat}
+                    onSaveCredentials={saveCustomCredentials}
+                    onPurgeDemoData={handlePurgeAllDemoData}
+                    knowledgeCount={knowledge.length}
+                    projectsCount={projects.length}
+                    reposCount={repos.length}
                   />
                 )}
               </div>

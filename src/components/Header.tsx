@@ -12,7 +12,7 @@ import { ThemeMode } from '../hooks/useTheme';
 import { GitHubUser } from '../types/auth';
 import { PWAInstallButton } from './PWAInstallButton';
 
-export type MainNavTab = 'dashboard' | 'knowledge' | 'projects' | 'submissions' | 'github' | 'architecture' | 'backup';
+export type MainNavTab = 'dashboard' | 'knowledge' | 'projects' | 'submissions' | 'github' | 'architecture' | 'backup' | 'settings';
 
 interface HeaderProps {
   viewMode: 'public' | 'admin';

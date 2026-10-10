@@ -60,9 +60,12 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
     }
   };
 
-  // Runtime environment callback URLs
-  const devCallbackUrl = 'https://ais-dev-3mxtkhulzaehqb2oikaejm-231818182929.asia-east1.run.app/auth/callback';
-  const sharedCallbackUrl = 'https://ais-pre-3mxtkhulzaehqb2oikaejm-231818182929.asia-east1.run.app/auth/callback';
+  // Cloudflare 生产环境与本地开发环境回调地址 (其他部署环境已全面移除)
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://airam.pages.dev';
+  const cloudflarePagesCallbackUrl = currentOrigin.includes('localhost') 
+    ? 'https://airam.pages.dev/auth/callback' 
+    : `${currentOrigin}/auth/callback`;
+  const localDevCallbackUrl = 'http://localhost:3000/auth/callback';
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -188,7 +191,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             </div>
           )}
 
-          {/* Tab Selector */}
+          {/* Tab Selector (只在开发环境中显示演示体验，生产环境完全移除演示模式) */}
           <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/70 rounded-lg text-xs font-mono">
             <button
               onClick={() => { setActiveTab('oauth'); setError(null); }}
@@ -210,16 +213,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             >
               Token (PAT) 登入
             </button>
-            <button
-              onClick={() => { setActiveTab('demo'); setError(null); }}
-              className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-all ${
-                activeTab === 'demo'
-                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-              }`}
-            >
-              演示体验
-            </button>
+            {!import.meta.env.PROD && (
+              <button
+                onClick={() => { setActiveTab('demo'); setError(null); }}
+                className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-all ${
+                  activeTab === 'demo'
+                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                }`}
+              >
+                演示体验 (开发)
+              </button>
+            )}
           </div>
 
           {/* TAB 1: GitHub OAuth Flow */}
@@ -308,11 +313,25 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
 
                     <div className="space-y-2 text-[11px]">
                       <div>
-                        <span className="text-zinc-500 block mb-1">1. 开发回调地址 (Authorization callback URL):</span>
+                        <span className="text-zinc-500 block mb-1">1. Cloudflare 生产环境回调 (Pages / 线上):</span>
                         <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[10px] break-all">
-                          <code className="text-zinc-700 dark:text-zinc-300">{devCallbackUrl}</code>
+                          <code className="text-zinc-700 dark:text-zinc-300">{cloudflarePagesCallbackUrl}</code>
                           <button
-                            onClick={() => copyToClipboard(devCallbackUrl, 'dev')}
+                            onClick={() => copyToClipboard(cloudflarePagesCallbackUrl, 'cf')}
+                            className="p-1 hover:text-zinc-900 dark:hover:text-zinc-100 shrink-0"
+                            title="复制"
+                          >
+                            {copiedKey === 'cf' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-zinc-500 block mb-1">2. 本地开发环境回调 (Local Dev):</span>
+                        <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[10px] break-all">
+                          <code className="text-zinc-700 dark:text-zinc-300">{localDevCallbackUrl}</code>
+                          <button
+                            onClick={() => copyToClipboard(localDevCallbackUrl, 'dev')}
                             className="p-1 hover:text-zinc-900 dark:hover:text-zinc-100 shrink-0"
                             title="复制"
                           >
@@ -321,22 +340,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                         </div>
                       </div>
 
-                      <div>
-                        <span className="text-zinc-500 block mb-1">2. 部署回调地址 (Shared / Deployed URL):</span>
-                        <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[10px] break-all">
-                          <code className="text-zinc-700 dark:text-zinc-300">{sharedCallbackUrl}</code>
-                          <button
-                            onClick={() => copyToClipboard(sharedCallbackUrl, 'shared')}
-                            className="p-1 hover:text-zinc-900 dark:hover:text-zinc-100 shrink-0"
-                            title="复制"
-                          >
-                            {copiedKey === 'shared' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-
                       <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] leading-relaxed">
-                        在 AI Studio 环境变量或 <code>.env</code> 中添加：
+                        在 Cloudflare Pages 项目设置 <strong>Settings -&gt; Environment variables</strong> 或 <code>.env</code> 中添加：
                         <br />
                         <code>GITHUB_CLIENT_ID</code> &amp; <code>GITHUB_CLIENT_SECRET</code>
                       </div>

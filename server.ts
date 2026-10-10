@@ -246,6 +246,10 @@ function loadSubmissions(): RepoSubmission[] {
   } catch (err) {
     console.warn('Failed to load submissions:', err);
   }
+  // In production, return clean empty slate (no demo submissions)
+  if (process.env.NODE_ENV === 'production') {
+    return [];
+  }
   return defaultSubmissions;
 }
 
@@ -285,8 +289,8 @@ async function startServer() {
 
   // 1. Get OAuth & Admin System status
   app.get('/api/auth/status', (req, res) => {
-    const clientId = process.env.GITHUB_CLIENT_ID || process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID || '';
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET || '';
+    const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID || process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID || '';
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET || '';
     const origin = (req.query.origin as string) || process.env.APP_URL || '';
     const redirectUri = origin ? `${origin.replace(/\/$/, '')}/auth/callback` : `${req.protocol}://${req.get('host')}/auth/callback`;
 
@@ -299,6 +303,24 @@ async function startServer() {
       hasAdmin: Boolean(adminSystemCache.admin),
       adminUsername: adminSystemCache.admin ? adminSystemCache.admin.login : null,
       adminUser: adminSystemCache.admin,
+      environment: process.env.NODE_ENV || 'development',
+    });
+  });
+
+  // System settings diagnostic endpoint
+  app.get('/api/system/settings', (req, res) => {
+    const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID || '';
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || '';
+    const token = process.env.GITHUB_TOKEN || '';
+    res.json({
+      environment: process.env.NODE_ENV || 'development',
+      hasClientId: Boolean(clientId),
+      hasClientSecret: Boolean(clientSecret),
+      hasGithubToken: Boolean(token),
+      clientIdMasked: clientId ? `${clientId.substring(0, 6)}...` : null,
+      isProduction: process.env.NODE_ENV === 'production',
+      hasAdmin: Boolean(adminSystemCache.admin),
+      adminUsername: adminSystemCache.admin ? adminSystemCache.admin.login : null,
     });
   });
 

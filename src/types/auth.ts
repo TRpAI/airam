@@ -1,16 +1,19 @@
 export type UserRole = 'admin' | 'visitor';
 
 export interface GitHubUser {
+  id?: number;
   login: string;
   name: string;
   avatar_url: string;
   bio?: string;
   html_url: string;
-  public_repos: number;
+  public_repos?: number;
   followers?: number;
   role: UserRole;
   isAdmin: boolean;
   registeredAt?: string;
+  claimedAt?: string;
+  isFirstAdminClaim?: boolean;
 }
 
 export interface AdminSystemState {
@@ -42,6 +45,6 @@ export interface OAuthStatus {
     login: string;
     name: string;
     avatar_url: string;
-    claimedAt: string;
+    claimedAt?: string;
   } | null;
 }

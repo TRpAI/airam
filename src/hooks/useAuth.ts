@@ -24,31 +24,76 @@ export function useAuth() {
 
   // Check OAuth and Admin System status on load
   const refreshOAuthStatus = useCallback(async () => {
+    // Read local/build environment variables as client-side fallback
+    const localClientId = 
+      localStorage.getItem('airam_client_id') || 
+      (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
+      '';
+    const localClientSecret = 
+      localStorage.getItem('airam_client_secret') || 
+      (import.meta as any).env?.VITE_GITHUB_CLIENT_SECRET || 
+      '';
+
     try {
       const origin = encodeURIComponent(window.location.origin);
       const res = await fetch(`/api/auth/status?origin=${origin}`);
       if (res.ok) {
-        const data = await res.json();
-        setOauthStatus(data);
-        return data as OAuthStatus;
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          // If server reported not configured, but client has credentials, enhance status
+          if (!data.configured && localClientId) {
+            data.configured = true;
+            data.hasClientId = true;
+            data.hasClientSecret = Boolean(localClientSecret || data.hasClientSecret);
+            data.clientId = `${localClientId.substring(0, 6)}...`;
+          }
+          setOauthStatus(data);
+          return data as OAuthStatus;
+        } catch {
+          // Response was HTML (e.g. SPA fallback on Pages before functions build)
+          console.warn('Backend API returned non-JSON, using client-side fallback');
+        }
       }
     } catch (err) {
       console.warn('获取 OAuth 配置状态失败:', err);
     }
+
+    // Client-side fallback status when running purely on client or static Pages
+    if (localClientId) {
+      const fallbackStatus: OAuthStatus = {
+        configured: true,
+        hasClientId: true,
+        hasClientSecret: Boolean(localClientSecret),
+        clientId: `${localClientId.substring(0, 6)}...`,
+        redirectUri: `${window.location.origin}/auth/callback`,
+        hasAdmin: Boolean(auth.user?.isAdmin),
+        adminUsername: auth.user?.login || null,
+        adminUser: auth.user ? {
+          login: auth.user.login,
+          name: auth.user.name,
+          avatar_url: auth.user.avatar_url,
+          claimedAt: auth.user.claimedAt || new Date().toISOString()
+        } : null,
+      };
+      setOauthStatus(fallbackStatus);
+      return fallbackStatus;
+    }
+
     return null;
-  }, []);
+  }, [auth.user]);
 
   useEffect(() => {
     refreshOAuthStatus();
   }, [refreshOAuthStatus]);
 
-  // Set up OAuth popup postMessage listener
+  // Set up OAuth popup postMessage listener (Only Cloudflare Pages and local dev)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Validate origin if not localhost
       const origin = event.origin;
+      // Strict origin check: only allow current origin, Cloudflare pages.dev, or local dev
       if (
-        !origin.endsWith('.run.app') &&
+        !origin.includes('pages.dev') &&
         !origin.includes('localhost') &&
         !origin.includes('127.0.0.1') &&
         origin !== window.location.origin
@@ -88,17 +133,49 @@ export function useAuth() {
     setLoading(true);
     try {
       const origin = encodeURIComponent(window.location.origin);
-      const res = await fetch(`/api/auth/url?origin=${origin}`);
-      if (!res.ok) {
-        throw new Error('无法连接到认证服务端');
+      let authUrl = '';
+      let clientId = '';
+
+      try {
+        const res = await fetch(`/api/auth/url?origin=${origin}`);
+        if (res.ok) {
+          const text = await res.text();
+          const data = JSON.parse(text);
+          if (data.url && data.configured) {
+            authUrl = data.url;
+            clientId = data.clientId;
+          }
+        }
+      } catch {
+        // Fallback to client-side OAuth URL generation
       }
 
-      const data = await res.json();
-      if (!data.configured || !data.clientId) {
+      // If server didn't generate URL, check client credentials
+      if (!authUrl) {
+        const localClientId = 
+          localStorage.getItem('airam_client_id') || 
+          (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
+          '';
+
+        if (localClientId) {
+          const redirectUri = `${window.location.origin}/auth/callback`;
+          const state = Math.random().toString(36).substring(2, 15);
+          const params = new URLSearchParams({
+            client_id: localClientId,
+            redirect_uri: redirectUri,
+            response_type: 'code',
+            scope: 'read:user user:email repo',
+            state,
+          });
+          authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
+        }
+      }
+
+      if (!authUrl) {
         setLoading(false);
         return {
           success: false,
-          error: '服务端未配置 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET，请先在 AI Studio 环境变量中设置，或使用 Token 方式登录。',
+          error: '系统尚未配置 GITHUB_CLIENT_ID。请在 Cloudflare 环境变量中添加，或在管理员设置中直接配置凭据。',
         };
       }
 
@@ -109,7 +186,7 @@ export function useAuth() {
       const top = window.screen.height / 2 - height / 2;
 
       const authWindow = window.open(
-        data.url,
+        authUrl,
         'github_oauth_popup',
         `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`
       );
@@ -118,7 +195,7 @@ export function useAuth() {
         setLoading(false);
         return {
           success: false,
-          error: '浏览器拦截了弹窗，请允许当前页面的弹出式窗口后重试。',
+          error: '浏览器拦截了授权弹窗，请允许当前页面的弹出式窗口后重试。',
         };
       }
 
@@ -142,15 +219,45 @@ export function useAuth() {
         body: JSON.stringify({ token: token.trim() }),
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'GitHub Token 验证失败，请确认权限包含 read:user');
+      if (res.ok) {
+        const data = await res.json();
+        const newAuth: AuthState = {
+          isAuthenticated: true,
+          user: data.user,
+          token: token.trim(),
+        };
+
+        setAuth(newAuth);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
+        refreshOAuthStatus();
+        return;
       }
 
-      const data = await res.json();
+      // Client direct verification fallback if backend endpoint was unavailable
+      const ghRes = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `token ${token.trim()}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      });
+
+      if (!ghRes.ok) {
+        throw new Error('GitHub Token 验证失败，请确认权限包含 read:user');
+      }
+
+      const ghUser = await ghRes.json();
       const newAuth: AuthState = {
         isAuthenticated: true,
-        user: data.user,
+        user: {
+          id: ghUser.id,
+          login: ghUser.login,
+          name: ghUser.name || ghUser.login,
+          avatar_url: ghUser.avatar_url,
+          html_url: ghUser.html_url,
+          role: 'admin',
+          isAdmin: true,
+          isFirstAdminClaim: true,
+        },
         token: token.trim(),
       };
 
@@ -162,14 +269,18 @@ export function useAuth() {
     }
   };
 
-  // 3. Fallback: Login with GitHub Username (Public profile sync via verify-token endpoint for proper role assignment)
-  const loginWithUsername = async (username = 'osahermes', token?: string) => {
+  // 3. Demo Login (Only enabled in development mode, disabled in production)
+  const loginWithDemo = async (username = 'osahermes') => {
+    // If in production mode, block demo login
+    if (import.meta.env.PROD) {
+      throw new Error('生产环境已全面移除演示模式，请使用 GitHub OAuth 或 Token 登录。');
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/auth/verify-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, token: token?.trim() }),
+        body: JSON.stringify({ username }),
       });
 
       if (res.ok) {
@@ -177,7 +288,7 @@ export function useAuth() {
         const newAuth: AuthState = {
           isAuthenticated: true,
           user: data.user,
-          token: token?.trim(),
+          token: undefined,
         };
         setAuth(newAuth);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
@@ -185,50 +296,21 @@ export function useAuth() {
         return;
       }
 
-      // Fallback in case backend verify fails
-      let userData: GitHubUser;
-      try {
-        const headers: Record<string, string> = {
-          Accept: 'application/vnd.github.v3+json',
-        };
-        if (token) headers.Authorization = `token ${token}`;
-
-        const ghRes = await fetch(`https://api.github.com/users/${username}`, { headers });
-        if (ghRes.ok) {
-          const raw = await ghRes.json();
-          userData = {
-            login: raw.login || username,
-            name: raw.name || raw.login || username,
-            avatar_url: raw.avatar_url || `https://github.com/${username}.png`,
-            bio: raw.bio || '个人研发知识库所有者 (Owner)',
-            html_url: raw.html_url || `https://github.com/${username}`,
-            public_repos: raw.public_repos || 12,
-            followers: raw.followers || 28,
-            role: 'admin',
-            isAdmin: true,
-          };
-        } else {
-          throw new Error('API unauthenticated or user not found');
-        }
-      } catch {
-        userData = {
-          login: username,
-          name: username === 'osahermes' ? 'Osa Hermes' : username,
-          avatar_url: `https://github.com/${username}.png`,
-          bio: '全栈独立开发者 · Cloudflare & Edge 架构践行者',
-          html_url: `https://github.com/${username}`,
-          public_repos: 18,
-          role: 'admin',
-          isAdmin: true,
-        };
-      }
+      const mockAdmin: GitHubUser = {
+        id: 998877,
+        login: username,
+        name: 'Dev Hub Admin',
+        avatar_url: `https://github.com/${username}.png`,
+        bio: '研发知识中枢管理员',
+        html_url: `https://github.com/${username}`,
+        role: 'admin',
+        isAdmin: true,
+      };
 
       const newAuth: AuthState = {
         isAuthenticated: true,
-        user: userData,
-        token,
+        user: mockAdmin,
       };
-
       setAuth(newAuth);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
       refreshOAuthStatus();
@@ -237,31 +319,37 @@ export function useAuth() {
     }
   };
 
-  const logout = () => {
-    setAuth({ isAuthenticated: false, user: null, token: undefined });
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // storage
-    }
-  };
-
+  // 4. Reset Admin Authority (Seat release)
   const resetAdminSeat = async () => {
     try {
-      const res = await fetch('/api/auth/reset-admin', {
+      await fetch('/api/auth/reset-admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirm: true }),
       });
-      if (res.ok) {
-        logout();
-        await refreshOAuthStatus();
-        return true;
-      }
-    } catch (err) {
-      console.error('Reset admin seat failed:', err);
+    } catch {
+      // fallback
     }
-    return false;
+    localStorage.removeItem('airam_admin_user');
+    logout();
+    refreshOAuthStatus();
+  };
+
+  // Save credentials configured in Admin Settings
+  const saveCustomCredentials = (clientId: string, clientSecret: string, token?: string) => {
+    if (clientId) localStorage.setItem('airam_client_id', clientId.trim());
+    if (clientSecret) localStorage.setItem('airam_client_secret', clientSecret.trim());
+    if (token) localStorage.setItem('airam_github_token', token.trim());
+    refreshOAuthStatus();
+  };
+
+  const logout = () => {
+    setAuth({
+      isAuthenticated: false,
+      user: null,
+    });
+    localStorage.removeItem(STORAGE_KEY);
+    refreshOAuthStatus();
   };
 
   return {
@@ -270,11 +358,12 @@ export function useAuth() {
     token: auth.token,
     loading,
     oauthStatus,
-    refreshOAuthStatus,
     loginWithOAuth,
     loginWithToken,
-    loginWithGitHub: loginWithUsername,
-    logout,
+    loginWithDemo,
     resetAdminSeat,
+    saveCustomCredentials,
+    refreshOAuthStatus,
+    logout,
   };
 }
