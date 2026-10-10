@@ -514,11 +514,6 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
           <div className="space-y-1">
             <div className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
               <span>安装为独立 Native App</span>
-              {isInIframe && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600">
-                  嵌入式 iframe 限制提示
-                </span>
-              )}
             </div>
             <p className="text-zinc-400 text-[11px]">
               支持在 Mac / Windows / Linux 独立运行，无需打开浏览器即可使用；支持移动端无白屏离线缓存。
@@ -526,27 +521,13 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {isInIframe ? (
-              <button
-                onClick={openInStandaloneWindow}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors text-xs"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                <span>在新标签页打开并安装</span>
-              </button>
-            ) : isInstallable ? (
-              <button
-                onClick={install}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors text-xs"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>一键安装到本机</span>
-              </button>
-            ) : (
-              <div className="text-[11px] text-zinc-400">
-                可通过浏览器地址栏 ⊕ 图标手动安装
-              </div>
-            )}
+            <button
+              onClick={install}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors text-xs cursor-pointer shadow-xs"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>直接安装 Native App</span>
+            </button>
           </div>
         </div>
       </div>

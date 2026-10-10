@@ -8,11 +8,12 @@ export interface RouteState {
   adminTab: MainNavTab;
   publicSection: PublicSection;
   selectedDocId: string | null;
+  selectedKnowledgeId?: string | null;
 }
 
 const STORAGE_KEY = 'airam_route_state';
 
-const VALID_ADMIN_TABS: MainNavTab[] = [
+export const VALID_ADMIN_TABS: MainNavTab[] = [
   'dashboard',
   'knowledge',
   'projects',
@@ -23,57 +24,104 @@ const VALID_ADMIN_TABS: MainNavTab[] = [
   'settings'
 ];
 
-const VALID_PUBLIC_SECTIONS: PublicSection[] = [
+export const VALID_PUBLIC_SECTIONS: PublicSection[] = [
   'all',
   'projects',
   'community',
   'knowledge'
 ];
 
-function parseHash(hash: string): RouteState | null {
-  const clean = hash.replace(/^#\/?/, '').trim();
-  if (!clean) return null;
+/**
+ * 从当前浏览器 URL (hash, pathname, search) 中解析路由
+ */
+export function parseRouteFromLocation(): RouteState | null {
+  if (typeof window === 'undefined') return null;
 
-  // 1. Admin route: admin or admin/:tab
-  if (clean.startsWith('admin')) {
-    const parts = clean.split('/');
-    const tabCandidate = parts[1] as MainNavTab;
-    const adminTab = VALID_ADMIN_TABS.includes(tabCandidate) ? tabCandidate : 'dashboard';
+  // 1. 优先提取 hash（例如 #/admin/settings, #/settings, #/projects, #/doc/kb-1）
+  const hashRaw = window.location.hash.replace(/^#\/?/, '').trim();
+
+  // 2. 提取 pathname（用于无 hash 时的直接访问或刷新）
+  const pathRaw = window.location.pathname.replace(/^\//, '').trim();
+
+  // 3. 提取 query params（用于 ?mode=admin&tab=settings 等）
+  const searchParams = new URLSearchParams(window.location.search);
+  const qMode = searchParams.get('mode') as 'public' | 'admin' | null;
+  const qTab = searchParams.get('tab') as MainNavTab | null;
+  const qSection = searchParams.get('section') as PublicSection | null;
+  const qDoc = searchParams.get('doc');
+
+  const candidate = hashRaw || (pathRaw && pathRaw !== 'index.html' ? pathRaw : '');
+
+  if (candidate) {
+    // 规则 A: 管理后台复合路径 admin 或 admin/:tab 或 admin/knowledge/:docId
+    if (candidate.startsWith('admin')) {
+      const parts = candidate.split('/');
+      const tabCandidate = parts[1] as MainNavTab;
+      const adminTab = VALID_ADMIN_TABS.includes(tabCandidate) ? tabCandidate : 'dashboard';
+      const subDocId = parts[2] || null;
+      return {
+        viewMode: 'admin',
+        adminTab,
+        publicSection: 'all',
+        selectedDocId: null,
+        selectedKnowledgeId: subDocId
+      };
+    }
+
+    // 规则 B: 独立管理标签（例如 #/settings, #/architecture, #/backup, #/github, #/submissions, #/dashboard）
+    if (VALID_ADMIN_TABS.includes(candidate as MainNavTab) && candidate !== 'knowledge' && candidate !== 'projects') {
+      return {
+        viewMode: 'admin',
+        adminTab: candidate as MainNavTab,
+        publicSection: 'all',
+        selectedDocId: null
+      };
+    }
+
+    // 规则 C: 知识阅读器弹窗 doc/:id
+    if (candidate.startsWith('doc/')) {
+      const docId = candidate.replace(/^doc\//, '').trim();
+      return {
+        viewMode: 'public',
+        adminTab: 'dashboard',
+        publicSection: 'knowledge',
+        selectedDocId: docId || null
+      };
+    }
+
+    // 规则 D: 前台展示区分类（projects, community, knowledge, all）
+    if (VALID_PUBLIC_SECTIONS.includes(candidate as PublicSection)) {
+      return {
+        viewMode: 'public',
+        adminTab: 'dashboard',
+        publicSection: candidate as PublicSection,
+        selectedDocId: null
+      };
+    }
+  }
+
+  // 规则 E: Query Params 驱动路由
+  if (qMode || qTab || qSection || qDoc) {
+    const viewMode = qMode || (qTab ? 'admin' : 'public');
+    const adminTab = qTab && VALID_ADMIN_TABS.includes(qTab) ? qTab : 'dashboard';
+    const publicSection = qSection && VALID_PUBLIC_SECTIONS.includes(qSection) ? qSection : 'all';
     return {
-      viewMode: 'admin',
+      viewMode,
       adminTab,
-      publicSection: 'all',
-      selectedDocId: null
-    };
-  }
-
-  // 2. Doc reader modal route: doc/:id
-  if (clean.startsWith('doc/')) {
-    const docId = clean.replace(/^doc\//, '').trim();
-    return {
-      viewMode: 'public',
-      adminTab: 'dashboard',
-      publicSection: 'knowledge',
-      selectedDocId: docId || null
-    };
-  }
-
-  // 3. Public sections: projects, community, knowledge, all
-  if (VALID_PUBLIC_SECTIONS.includes(clean as PublicSection)) {
-    return {
-      viewMode: 'public',
-      adminTab: 'dashboard',
-      publicSection: clean as PublicSection,
-      selectedDocId: null
+      publicSection,
+      selectedDocId: qDoc || null
     };
   }
 
   return null;
 }
 
-function getStoredRoute(): RouteState {
+/**
+ * 从本地持久化存储（localStorage / sessionStorage）获取上次活跃路由
+ */
+export function getStoredRoute(): RouteState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
@@ -81,7 +129,8 @@ function getStoredRoute(): RouteState {
           viewMode: parsed.viewMode === 'admin' ? 'admin' : 'public',
           adminTab: VALID_ADMIN_TABS.includes(parsed.adminTab) ? parsed.adminTab : 'dashboard',
           publicSection: VALID_PUBLIC_SECTIONS.includes(parsed.publicSection) ? parsed.publicSection : 'all',
-          selectedDocId: parsed.selectedDocId || null
+          selectedDocId: parsed.selectedDocId || null,
+          selectedKnowledgeId: parsed.selectedKnowledgeId || null
         };
       }
     }
@@ -91,12 +140,19 @@ function getStoredRoute(): RouteState {
     viewMode: 'public',
     adminTab: 'dashboard',
     publicSection: 'all',
-    selectedDocId: null
+    selectedDocId: null,
+    selectedKnowledgeId: null
   };
 }
 
+/**
+ * 根据路由状态生成规范化 URL Hash
+ */
 export function buildHash(route: RouteState): string {
   if (route.viewMode === 'admin') {
+    if (route.adminTab === 'knowledge' && route.selectedKnowledgeId) {
+      return `#/admin/knowledge/${route.selectedKnowledgeId}`;
+    }
     return `#/admin/${route.adminTab}`;
   }
   if (route.selectedDocId) {
@@ -110,28 +166,33 @@ export function buildHash(route: RouteState): string {
 
 export function useAppRouter() {
   const [route, setRoute] = useState<RouteState>(() => {
-    // 1. Try URL hash first
-    if (typeof window !== 'undefined' && window.location.hash) {
-      const parsed = parseHash(window.location.hash);
-      if (parsed) return parsed;
+    // 1. 优先尝试从 URL 解析
+    const fromUrl = parseRouteFromLocation();
+    if (fromUrl) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(fromUrl));
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(fromUrl));
+      } catch {}
+      return fromUrl;
     }
-    // 2. Fall back to localStorage
+
+    // 2. 降级从 localStorage / sessionStorage 获取
     return getStoredRoute();
   });
 
-  // Sync route state to URL hash and localStorage
+  // 更新路由状态并双向同步到 URL Hash 与 Storage
   const updateRoute = useCallback((updater: Partial<RouteState> | ((prev: RouteState) => RouteState)) => {
     setRoute((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
       const newHash = buildHash(next);
 
-      // Update URL hash seamlessly and persist
       if (typeof window !== 'undefined') {
         try {
           if (window.location.hash !== newHash) {
-            window.history.replaceState(null, '', newHash);
+            window.history.pushState(null, '', newHash);
           }
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         } catch {}
       }
 
@@ -139,29 +200,37 @@ export function useAppRouter() {
     });
   }, []);
 
-  // Listen to hashchange events (browser forward/back or manual address bar changes)
+  // 监听浏览器前进、后退及 Hash 变更
   useEffect(() => {
-    const handleHashChange = () => {
-      const parsed = parseHash(window.location.hash);
+    const handleUrlChange = () => {
+      const parsed = parseRouteFromLocation();
       if (parsed) {
         setRoute(parsed);
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
         } catch {}
       }
     };
 
-    // Ensure the initial hash matches the initial route if hash was empty
-    const currentHash = buildHash(route);
-    if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-      window.history.replaceState(null, '', currentHash);
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+
+    // 首次挂载：确保当前 URL 与存储的页面定位保持一致（避免刷新时 URL 空白被重置）
+    const targetHash = buildHash(route);
+    if (!window.location.hash || window.location.hash === '#' || window.location.hash !== targetHash) {
+      try {
+        window.history.replaceState(null, '', targetHash);
+      } catch {}
     }
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+    };
   }, []);
 
-  // Router Helpers
+  // 快捷路由操作函数
   const setViewMode = useCallback((mode: 'public' | 'admin') => {
     updateRoute((prev) => ({
       ...prev,
@@ -194,15 +263,24 @@ export function useAppRouter() {
     }));
   }, [updateRoute]);
 
+  const setSelectedKnowledgeId = useCallback((id: string | null) => {
+    updateRoute((prev) => ({
+      ...prev,
+      selectedKnowledgeId: id
+    }));
+  }, [updateRoute]);
+
   return {
     viewMode: route.viewMode,
     activeTab: route.adminTab,
     publicSection: route.publicSection,
     selectedDocId: route.selectedDocId,
+    selectedKnowledgeId: route.selectedKnowledgeId,
     setViewMode,
     setActiveTab,
     setPublicSection,
     setSelectedDocId,
+    setSelectedKnowledgeId,
     updateRoute
   };
 }

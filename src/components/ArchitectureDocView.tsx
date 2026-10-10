@@ -13,7 +13,15 @@ import { architectureDocs } from '../data/architectureDocs';
 interface ArchitectureDocViewProps {}
 
 export const ArchitectureDocView: React.FC<ArchitectureDocViewProps> = () => {
-  const [activeSectionId, setActiveSectionId] = useState<string>(architectureDocs[0].id);
+  const [activeSectionId, setActiveSectionIdState] = useState<string>(() => {
+    return localStorage.getItem('airam_active_arch_doc') || architectureDocs[0].id;
+  });
+  const setActiveSectionId = (id: string) => {
+    setActiveSectionIdState(id);
+    try {
+      localStorage.setItem('airam_active_arch_doc', id);
+    } catch {}
+  };
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   const [checkedSteps, setCheckedSteps] = useState<Record<string, boolean>>({

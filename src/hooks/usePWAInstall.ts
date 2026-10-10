@@ -6,7 +6,9 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
+    return (typeof window !== 'undefined' && (window as any).__deferredPwaPrompt) || null;
+  });
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isInIframe, setIsInIframe] = useState(false);
@@ -16,7 +18,8 @@ export function usePWAInstall() {
     // Detect standalone mode (already installed as PWA)
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+      (typeof window !== 'undefined' && (window as any).__isPwaInstalled === true);
     setIsInstalled(isStandalone);
 
     // Detect if inside an iframe (such as AI Studio preview or sandboxed embed)
@@ -41,11 +44,18 @@ export function usePWAInstall() {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
+      if (typeof window !== 'undefined') {
+        (window as any).__deferredPwaPrompt = e;
+      }
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      if (typeof window !== 'undefined') {
+        (window as any).__deferredPwaPrompt = null;
+        (window as any).__isPwaInstalled = true;
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -57,19 +67,35 @@ export function usePWAInstall() {
     };
   }, []);
 
-  const install = async () => {
-    if (!deferredPrompt) return false;
-    try {
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setIsInstalled(true);
-        setDeferredPrompt(null);
-        return true;
+  const install = async (): Promise<boolean> => {
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__deferredPwaPrompt : null);
+    
+    // 1. Direct native browser install prompt (Chrome, Edge, Android)
+    if (promptEvent && typeof promptEvent.prompt === 'function') {
+      try {
+        await promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === 'accepted') {
+          setIsInstalled(true);
+          setDeferredPrompt(null);
+          if (typeof window !== 'undefined') {
+            (window as any).__deferredPwaPrompt = null;
+          }
+          return true;
+        }
+      } catch (err) {
+        console.warn('PWA install prompt error:', err);
       }
-    } catch (err) {
-      console.warn('PWA install prompt error:', err);
     }
+
+    // 2. In iframe (e.g. AI Studio preview), opening top window directly triggers browser install
+    if (isInIframe) {
+      try {
+        window.open(window.location.href, '_blank', 'noopener,noreferrer');
+        return true;
+      } catch {}
+    }
+
     return false;
   };
 

@@ -91,10 +91,12 @@ export default function App() {
     activeTab,
     publicSection,
     selectedDocId,
+    selectedKnowledgeId: routerKnowledgeId,
     setViewMode,
     setActiveTab,
     setPublicSection,
-    setSelectedDocId
+    setSelectedDocId,
+    setSelectedKnowledgeId: setRouterKnowledgeId
   } = useAppRouter();
 
   // 生产环境规范：严格移除所有演示数据 (import.meta.env.PROD 状态或用户手动清理)
@@ -164,8 +166,18 @@ export default function App() {
     deleteSubmission,
   } = useSubmissions(Boolean(user?.isAdmin), user?.login);
 
-  // 联动跳转状态
-  const [selectedKnowledgeId, setSelectedKnowledgeId] = useState<string>(initialKnowledgeItems[0]?.id || '');
+  // 联动跳转与知识条目状态（刷新自动保留当前选中的笔记）
+  const [internalKnowledgeId, setInternalKnowledgeId] = useState<string>(() => {
+    return localStorage.getItem('airam_selected_kb_id') || initialKnowledgeItems[0]?.id || '';
+  });
+  const selectedKnowledgeId = routerKnowledgeId || internalKnowledgeId;
+  const handleSelectKnowledgeId = (id: string) => {
+    setInternalKnowledgeId(id);
+    setRouterKnowledgeId(id);
+    try {
+      localStorage.setItem('airam_selected_kb_id', id);
+    } catch {}
+  };
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // 1. 知识 CRUD 操作
@@ -458,7 +470,7 @@ export default function App() {
                     onNavigateToProjects={() => setActiveTab('projects')}
                     onNavigateToGitHub={() => setActiveTab('github')}
                     onSelectKnowledgeItem={(id) => {
-                      setSelectedKnowledgeId(id);
+                      handleSelectKnowledgeId(id);
                       setActiveTab('knowledge');
                     }}
                     onSelectProject={(id) => {
@@ -476,7 +488,7 @@ export default function App() {
                     onSaveKnowledge={handleSaveKnowledge}
                     onDeleteKnowledge={handleDeleteKnowledge}
                     selectedId={selectedKnowledgeId}
-                    onSelectId={setSelectedKnowledgeId}
+                    onSelectId={handleSelectKnowledgeId}
                   />
                 )}
 
@@ -560,7 +572,7 @@ export default function App() {
         projects={projects}
         repos={repos}
         onSelectKnowledge={(id) => {
-          setSelectedKnowledgeId(id);
+          handleSelectKnowledgeId(id);
           if (viewMode === 'admin') {
             setActiveTab('knowledge');
           } else {
