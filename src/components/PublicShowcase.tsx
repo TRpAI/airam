@@ -31,6 +31,10 @@ interface PublicShowcaseProps {
   onOpenSearch: () => void;
   onOpenSubmitRepo: () => void;
   user: GitHubUser | null;
+  activeSection?: 'all' | 'projects' | 'community' | 'knowledge';
+  onSectionChange?: (section: 'all' | 'projects' | 'community' | 'knowledge') => void;
+  selectedDocId?: string | null;
+  onSelectDoc?: (id: string | null) => void;
 }
 
 export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
@@ -42,10 +46,27 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
   onOpenSearch,
   onOpenSubmitRepo,
   user,
+  activeSection: activeSectionProp,
+  onSectionChange,
+  selectedDocId: selectedDocIdProp,
+  onSelectDoc,
 }) => {
-  const [activeSection, setActiveSection] = useState<'all' | 'projects' | 'community' | 'knowledge'>('all');
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [internalSection, setInternalSection] = useState<'all' | 'projects' | 'community' | 'knowledge'>('all');
+  const [internalDocId, setInternalDocId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const activeSection = activeSectionProp !== undefined ? activeSectionProp : internalSection;
+  const selectedDocId = selectedDocIdProp !== undefined ? selectedDocIdProp : internalDocId;
+
+  const handleSectionClick = (sec: 'all' | 'projects' | 'community' | 'knowledge') => {
+    setInternalSection(sec);
+    onSectionChange?.(sec);
+  };
+
+  const handleDocClick = (id: string | null) => {
+    setInternalDocId(id);
+    onSelectDoc?.(id);
+  };
 
   // Selected note for reader modal/view
   const activeDoc = useMemo(() => {
@@ -143,7 +164,7 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveSection(tab.id as any)}
+              onClick={() => handleSectionClick(tab.id as any)}
               className={`px-3 py-1.5 rounded-md transition-colors whitespace-nowrap min-h-[32px] text-xs ${
                 activeSection === tab.id
                   ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs'
@@ -381,7 +402,7 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
             {knowledge.map((k) => (
               <div
                 key={k.id}
-                onClick={() => setSelectedDocId(k.id)}
+                onClick={() => handleDocClick(k.id)}
                 className="p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
                 <div className="space-y-1">
@@ -415,7 +436,7 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
       {activeDoc && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-zinc-950/70 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setSelectedDocId(null)}
+          onClick={() => handleDocClick(null)}
         >
           <div 
             className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl p-4 sm:p-7 space-y-4 max-h-[90vh] overflow-y-auto"
@@ -434,7 +455,7 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
                   {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                 </button>
                 <button
-                  onClick={() => setSelectedDocId(null)}
+                  onClick={() => handleDocClick(null)}
                   className="text-xs font-mono px-2.5 py-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 min-h-[36px] flex items-center justify-center active:scale-95"
                 >
                   关闭 (ESC)

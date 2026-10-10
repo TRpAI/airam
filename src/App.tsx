@@ -57,6 +57,7 @@ import { KnowledgeItem, Project, GitHubRepository, SyncLog, Tag } from './types'
 import { generateProjectCardFromRepo } from './services/githubService';
 import { useTheme } from './hooks/useTheme';
 import { useAuth } from './hooks/useAuth';
+import { useAppRouter } from './hooks/useAppRouter';
 
 import { 
   LayoutDashboard, 
@@ -84,11 +85,17 @@ export default function App() {
     refreshOAuthStatus
   } = useAuth();
 
-  // 核心前后台分离模式: 'public' (前台展示) | 'admin' (后台管理)
-  const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
-
-  // 后台管理子导航
-  const [activeTab, setActiveTab] = useState<MainNavTab>('dashboard');
+  // 核心路由与状态保持中枢 (刷新保留当前页面与子标签，支持浏览器前进/后退)
+  const {
+    viewMode,
+    activeTab,
+    publicSection,
+    selectedDocId,
+    setViewMode,
+    setActiveTab,
+    setPublicSection,
+    setSelectedDocId
+  } = useAppRouter();
 
   // 生产环境规范：严格移除所有演示数据 (import.meta.env.PROD 状态或用户手动清理)
   const isPurgedMode = import.meta.env.PROD || localStorage.getItem('airam_demo_purged') === 'true';
@@ -332,6 +339,10 @@ export default function App() {
             onOpenSearch={() => setIsSearchOpen(true)}
             onOpenSubmitRepo={() => setIsSubmitModalOpen(true)}
             user={user}
+            activeSection={publicSection}
+            onSectionChange={setPublicSection}
+            selectedDocId={selectedDocId}
+            onSelectDoc={setSelectedDocId}
           />
         )}
 
@@ -550,13 +561,25 @@ export default function App() {
         repos={repos}
         onSelectKnowledge={(id) => {
           setSelectedKnowledgeId(id);
-          if (viewMode === 'admin') setActiveTab('knowledge');
+          if (viewMode === 'admin') {
+            setActiveTab('knowledge');
+          } else {
+            setSelectedDocId(id);
+          }
         }}
-        onSelectProject={(id) => {
-          if (viewMode === 'admin') setActiveTab('projects');
+        onSelectProject={() => {
+          if (viewMode === 'admin') {
+            setActiveTab('projects');
+          } else {
+            setPublicSection('projects');
+          }
         }}
-        onSelectRepo={(id) => {
-          if (viewMode === 'admin') setActiveTab('github');
+        onSelectRepo={() => {
+          if (viewMode === 'admin') {
+            setActiveTab('github');
+          } else {
+            setPublicSection('projects');
+          }
         }}
       />
 
