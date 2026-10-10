@@ -12,7 +12,7 @@ import { ThemeMode } from '../hooks/useTheme';
 import { GitHubUser } from '../types/auth';
 import { PWAInstallButton } from './PWAInstallButton';
 
-export type MainNavTab = 'dashboard' | 'knowledge' | 'projects' | 'github' | 'architecture' | 'backup';
+export type MainNavTab = 'dashboard' | 'knowledge' | 'projects' | 'submissions' | 'github' | 'architecture' | 'backup';
 
 interface HeaderProps {
   viewMode: 'public' | 'admin';
@@ -173,19 +173,33 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-1.5 p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="用户设置与主页"
               >
-                <img 
-                  src={user.avatar_url} 
-                  alt={user.login} 
-                  className="h-6 w-6 rounded-full border border-zinc-300 dark:border-zinc-700 object-cover" 
-                />
+                <div className="relative">
+                  <img 
+                    src={user.avatar_url} 
+                    alt={user.login} 
+                    className={`h-6 w-6 rounded-full border object-cover ${user.isAdmin ? 'border-emerald-500' : 'border-sky-500'}`} 
+                  />
+                  {user.isAdmin && (
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-zinc-900" title="管理员" />
+                  )}
+                </div>
                 <ChevronDown className="h-3 w-3 text-zinc-400" />
               </button>
 
               {userDropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-44 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl p-2 z-50 text-xs font-mono space-y-2">
+                <div className="absolute right-0 mt-1.5 w-48 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl p-2 z-50 text-xs font-mono space-y-2">
                   <div className="px-2 py-1 border-b border-zinc-100 dark:border-zinc-800">
-                    <div className="font-bold text-zinc-900 dark:text-zinc-100 truncate">{user.name}</div>
-                    <div className="text-[10px] text-zinc-400 truncate">@{user.login} (Owner)</div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100 truncate">{user.name}</span>
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase ${
+                        user.isAdmin 
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'
+                      }`}>
+                        {user.isAdmin ? 'Admin' : 'Visitor'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-zinc-400 truncate">@{user.login}</div>
                   </div>
 
                   <a

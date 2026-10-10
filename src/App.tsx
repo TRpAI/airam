@@ -35,6 +35,13 @@ import {
 import { 
   SearchModal 
 } from './components/SearchModal';
+import { 
+  SubmissionModal 
+} from './components/SubmissionModal';
+import { 
+  AdminSubmissionsView 
+} from './components/AdminSubmissionsView';
+import { useSubmissions } from './hooks/useSubmissions';
 
 import { 
   initialKnowledgeItems, 
@@ -59,7 +66,16 @@ import {
 
 export default function App() {
   const { theme, setTheme } = useTheme();
-  const { isAuthenticated, user, loginWithGitHub, logout, loading: authLoading } = useAuth();
+  const { 
+    isAuthenticated, 
+    user, 
+    loginWithOAuth, 
+    loginWithToken, 
+    loginWithGitHub, 
+    logout, 
+    loading: authLoading,
+    oauthStatus
+  } = useAuth();
 
   // 核心前后台分离模式: 'public' (前台展示) | 'admin' (后台管理)
   const [viewMode, setViewMode] = useState<'public' | 'admin'>('public');
@@ -77,8 +93,20 @@ export default function App() {
   // R2 可选项状态 (默认 false: 保持纯 D1 极简形态)
   const [r2Enabled, setR2Enabled] = useState<boolean>(false);
 
-  // 全局检索弹窗状态
+  // 全局检索与提交弹窗状态
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState<boolean>(false);
+
+  // 访客开源仓库提交与审核管理状态
+  const {
+    submissions,
+    stats: submissionStats,
+    loading: submissionsLoading,
+    fetchSubmissions,
+    submitRepo,
+    reviewSubmission,
+    deleteSubmission,
+  } = useSubmissions(Boolean(user?.isAdmin), user?.login);
 
   // 联动跳转状态
   const [selectedKnowledgeId, setSelectedKnowledgeId] = useState<string>(initialKnowledgeItems[0]?.id || '');
@@ -250,8 +278,10 @@ export default function App() {
             knowledge={knowledge}
             projects={projects}
             repos={repos}
+            approvedSubmissions={submissions.filter((s) => s.status === 'approved')}
             onGoToAdmin={() => setViewMode('admin')}
             onOpenSearch={() => setIsSearchOpen(true)}
+            onOpenSubmitRepo={() => setIsSubmitModalOpen(true)}
             user={user}
           />
         )}
@@ -264,8 +294,11 @@ export default function App() {
             {/* If not authenticated with GitHub account, show Login Gate */}
             {!isAuthenticated ? (
               <AdminLogin
-                onLogin={loginWithGitHub}
+                onLoginOAuth={loginWithOAuth}
+                onLoginToken={loginWithToken}
+                onLoginDemo={loginWithGitHub}
                 loading={authLoading}
+                oauthStatus={oauthStatus}
                 onReturnToPublic={() => setViewMode('public')}
               />
             ) : (
@@ -282,6 +315,15 @@ export default function App() {
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                           D1 边缘在线
                         </span>
+                        {user && (
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                            user.isAdmin
+                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'
+                          }`}>
+                            {user.isAdmin ? `管理员: @${user.login}` : `访客: @${user.login}`}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-2xl leading-relaxed">
                         以 GitHub 代码资产为真实数据源的单用户边缘知识中枢 · Cloudflare D1 驱动
@@ -312,6 +354,12 @@ export default function App() {
                     { id: 'dashboard' as MainNavTab, label: '概览', icon: LayoutDashboard },
                     { id: 'knowledge' as MainNavTab, label: `知识手记 (${knowledge.length})`, icon: FileText },
                     { id: 'projects' as MainNavTab, label: `研发项目 (${projects.length})`, icon: FolderGit2 },
+                    { 
+                      id: 'submissions' as MainNavTab, 
+                      label: `仓库审核 ${submissionStats.pendingCount > 0 ? `(${submissionStats.pendingCount})` : ''}`, 
+                      icon: GitBranch,
+                      isPending: submissionStats.pendingCount > 0,
+                    },
                     { id: 'github' as MainNavTab, label: `同步审计 (${repos.length})`, icon: GitBranch },
                     { id: 'architecture' as MainNavTab, label: '系统架构', icon: BookOpen },
                     { id: 'backup' as MainNavTab, label: '数据备份', icon: Database },
@@ -330,6 +378,9 @@ export default function App() {
                       >
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span>{item.label}</span>
+                        {'isPending' in item && item.isPending && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        )}
                       </button>
                     );
                   })}
@@ -374,6 +425,23 @@ export default function App() {
                     repos={repos}
                     onSaveProject={handleSaveProject}
                     onDeleteProject={handleDeleteProject}
+                  />
+                )}
+
+                {activeTab === 'submissions' && (
+                  <AdminSubmissionsView
+                    submissions={submissions}
+                    stats={submissionStats}
+                    loading={submissionsLoading}
+                    user={user}
+                    onRefresh={fetchSubmissions}
+                    onReview={async (id, action, comment) => {
+                      return await reviewSubmission(id, action, comment, user?.login);
+                    }}
+                    onDelete={async (id) => {
+                      return await deleteSubmission(id, user?.login);
+                    }}
+                    onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
                   />
                 )}
 
@@ -425,6 +493,17 @@ export default function App() {
         }}
         onSelectRepo={(id) => {
           if (viewMode === 'admin') setActiveTab('github');
+        }}
+      />
+
+      {/* Visitor Repository Submission Modal */}
+      <SubmissionModal
+        isOpen={isSubmitModalOpen}
+        onClose={() => setIsSubmitModalOpen(false)}
+        user={user}
+        onSubmitRepo={submitRepo}
+        onSuccess={() => {
+          fetchSubmissions();
         }}
       />
 

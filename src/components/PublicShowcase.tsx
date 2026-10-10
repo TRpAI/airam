@@ -12,17 +12,23 @@ import {
   BookOpen,
   Copy,
   Check,
-  Clock
+  Clock,
+  Plus,
+  Users,
+  ShieldCheck,
+  MessageSquare
 } from 'lucide-react';
-import { KnowledgeItem, Project, GitHubRepository } from '../types';
+import { KnowledgeItem, Project, GitHubRepository, RepoSubmission } from '../types';
 import { GitHubUser } from '../types/auth';
 
 interface PublicShowcaseProps {
   knowledge: KnowledgeItem[];
   projects: Project[];
   repos: GitHubRepository[];
+  approvedSubmissions?: RepoSubmission[];
   onGoToAdmin: () => void;
   onOpenSearch: () => void;
+  onOpenSubmitRepo: () => void;
   user: GitHubUser | null;
 }
 
@@ -30,11 +36,13 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
   knowledge,
   projects,
   repos,
+  approvedSubmissions = [],
   onGoToAdmin,
   onOpenSearch,
+  onOpenSubmitRepo,
   user,
 }) => {
-  const [activeSection, setActiveSection] = useState<'all' | 'projects' | 'knowledge'>('all');
+  const [activeSection, setActiveSection] = useState<'all' | 'projects' | 'community' | 'knowledge'>('all');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -80,6 +88,17 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
               </p>
             </div>
           </div>
+
+          {/* Action: Submit Repository Button */}
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              onClick={onOpenSubmitRepo}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>提交开源仓库</span>
+            </button>
+          </div>
         </div>
 
         {/* Public Stack & Stats Inline Bar */}
@@ -93,19 +112,24 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
           <div className="flex items-center gap-2.5 sm:gap-3 text-zinc-600 dark:text-zinc-400 text-[11px] sm:text-xs">
             <span>⭐ {totalStars} Stars</span>
             <span>·</span>
-            <span>{projects.length} 个项目</span>
+            <span>{projects.length} 个核心项目</span>
+            <span>·</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+              {approvedSubmissions.length} 个社区推荐
+            </span>
             <span>·</span>
             <span>{knowledge.length} 篇手记</span>
           </div>
         </div>
       </div>
 
-      {/* 2. Navigation Pills: All / Projects / Knowledge */}
+      {/* 2. Navigation Pills: All / Projects / Community / Knowledge */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2 gap-2.5">
         <div className="flex items-center space-x-1.5 text-xs font-mono overflow-x-auto scrollbar-none pb-1 sm:pb-0 -mx-1 px-1">
           {[
             { id: 'all', label: '全部精选' },
-            { id: 'projects', label: `开源项目 (${projects.length})` },
+            { id: 'projects', label: `核心项目 (${projects.length})` },
+            { id: 'community', label: `社区推荐 (${approvedSubmissions.length})` },
             { id: 'knowledge', label: `知识手记 (${knowledge.length})` },
           ].map((tab) => (
             <button
@@ -122,13 +146,15 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
           ))}
         </div>
 
-        <button
-          onClick={onOpenSearch}
-          className="text-xs font-mono text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center gap-1"
-        >
-          <Search className="h-3.5 w-3.5" />
-          <span>全局检索</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenSearch}
+            className="text-xs font-mono text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center gap-1"
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span>全局检索</span>
+          </button>
+        </div>
       </div>
 
       {/* 3. Featured Projects Showcase */}
@@ -227,7 +253,112 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
         </div>
       )}
 
-      {/* 4. Public Knowledge Base Reader */}
+      {/* 4. Community & Visitor Approved Submissions Showcase */}
+      {(activeSection === 'all' || activeSection === 'community') && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100 uppercase tracking-wide flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-emerald-500" />
+                <span>社区共建与访客推荐开源</span>
+              </h2>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                管理员审核准入
+              </span>
+            </div>
+            <button
+              onClick={onOpenSubmitRepo}
+              className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+            >
+              <Plus className="h-3 w-3" />
+              <span>我也要提交仓库</span>
+            </button>
+          </div>
+
+          {approvedSubmissions.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-6 text-center space-y-2">
+              <p className="text-xs font-mono text-zinc-500">
+                暂无已准入的社区推荐仓库。
+              </p>
+              <button
+                onClick={onOpenSubmitRepo}
+                className="text-xs font-mono text-emerald-600 dark:text-emerald-400 underline hover:no-underline"
+              >
+                成为第一个提交并获准展示的开发者
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {approvedSubmissions.map((sub) => (
+                <div
+                  key={sub.id}
+                  className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 sm:p-5 flex flex-col justify-between hover:border-emerald-500/50 transition-colors shadow-xs"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100 truncate">
+                            {sub.full_name}
+                          </h3>
+                        </div>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
+                          {sub.description || '暂无描述'}
+                        </p>
+                      </div>
+
+                      <span className="flex items-center gap-1 text-xs font-mono text-amber-500 shrink-0">
+                        <Star className="h-3 w-3 fill-current" />
+                        <span>{sub.stars.toLocaleString()}</span>
+                      </span>
+                    </div>
+
+                    {/* Submitter Recommendation Note */}
+                    {sub.submitter_note && (
+                      <div className="mt-3 p-2 rounded bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800/80 text-[11px] font-mono text-zinc-600 dark:text-zinc-400 flex items-start gap-1.5">
+                        <MessageSquare className="h-3 w-3 text-zinc-400 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{sub.submitter_note}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Bottom Meta */}
+                  <div className="mt-4 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+                    <div className="flex items-center gap-1.5">
+                      <img
+                        src={sub.submitter_avatar || `https://github.com/${sub.submitter_login}.png`}
+                        alt={sub.submitter_login}
+                        className="h-3.5 w-3.5 rounded-full border border-zinc-300 dark:border-zinc-700"
+                      />
+                      <span>由 @{sub.submitter_login} 推荐</span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      {sub.language && (
+                        <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px]">
+                          {sub.language}
+                        </span>
+                      )}
+                      <a
+                        href={sub.repo_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1"
+                      >
+                        <GitBranch className="h-3 w-3" />
+                        <span>查看仓库</span>
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 5. Public Knowledge Base Reader */}
       {(activeSection === 'all' || activeSection === 'knowledge') && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -302,19 +433,22 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
               </div>
             </div>
 
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold font-mono text-zinc-900 dark:text-zinc-100">
+            <div className="space-y-4 font-mono">
+              <h1 className="text-base sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
                 {activeDoc.title}
               </h1>
-              {activeDoc.summary && (
-                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-2 border-l-2 border-zinc-300 dark:border-zinc-700 pl-3 italic">
-                  {activeDoc.summary}
-                </p>
-              )}
-            </div>
 
-            <div className="prose prose-zinc dark:prose-invert max-w-none text-zinc-800 dark:text-zinc-300 text-xs sm:text-sm leading-relaxed space-y-3 pt-2">
-              {renderReaderMarkdown(activeDoc.content)}
+              <div className="flex flex-wrap gap-1.5">
+                {activeDoc.tags.map((t) => (
+                  <span key={t} className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">
+                    #{t}
+                  </span>
+                ))}
+              </div>
+
+              <div className="prose prose-zinc dark:prose-invert max-w-none text-xs sm:text-sm leading-relaxed whitespace-pre-wrap font-sans text-zinc-700 dark:text-zinc-300">
+                {activeDoc.content}
+              </div>
             </div>
           </div>
         </div>
@@ -323,46 +457,3 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
     </div>
   );
 };
-
-function renderReaderMarkdown(content: string) {
-  const lines = content.split('\n');
-  const elements: React.ReactNode[] = [];
-  let inCode = false;
-  let codeLines: string[] = [];
-
-  lines.forEach((line, idx) => {
-    if (line.startsWith('```')) {
-      if (!inCode) {
-        inCode = true;
-        codeLines = [];
-      } else {
-        inCode = false;
-        elements.push(
-          <div key={`code-${idx}`} className="my-2 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-2.5 font-mono text-xs text-zinc-800 dark:text-zinc-200 overflow-x-auto">
-            <pre className="whitespace-pre">{codeLines.join('\n')}</pre>
-          </div>
-        );
-      }
-      return;
-    }
-
-    if (inCode) {
-      codeLines.push(line);
-      return;
-    }
-
-    if (line.startsWith('# ')) {
-      elements.push(<h2 key={idx} className="text-base font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-4 mb-1">{line.replace('# ', '')}</h2>);
-    } else if (line.startsWith('## ')) {
-      elements.push(<h3 key={idx} className="text-sm font-semibold font-mono text-zinc-900 dark:text-zinc-100 mt-3 mb-1">{line.replace('## ', '')}</h3>);
-    } else if (line.startsWith('- ') || line.startsWith('* ')) {
-      elements.push(<li key={idx} className="ml-4 list-disc text-xs sm:text-sm text-zinc-700 dark:text-zinc-300">{line.replace(/^[-*]\s*/, '')}</li>);
-    } else if (line.trim() === '') {
-      elements.push(<div key={idx} className="h-1" />);
-    } else {
-      elements.push(<p key={idx} className="text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">{line}</p>);
-    }
-  });
-
-  return elements;
-}

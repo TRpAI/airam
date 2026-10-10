@@ -2,7 +2,7 @@ export interface DocSection {
   id: string;
   title: string;
   shortDesc: string;
-  category: 'overview' | 'tech_stack' | 'architecture' | 'database' | 'api' | 'github_sync' | 'security' | 'backup' | 'roadmap' | 'scaffold';
+  category: 'overview' | 'tech_stack' | 'architecture' | 'database' | 'api' | 'github_sync' | 'security' | 'backup' | 'roadmap' | 'scaffold' | 'deployment';
   content: string;
   codeSnippet?: {
     language: string;
@@ -717,6 +717,61 @@ async function verifyGitHubSignature(rawBody: string, signature: string | null, 
   const hex = Array.from(new Uint8Array(signed)).map(b => b.toString(16).padStart(2, '0')).join('');
   return hex === expected;
 }`
+    }
+  },
+  {
+    id: 'deployment_guide',
+    title: '九、系统改造后全栈部署与运维教程 (Deployment Guide)',
+    shortDesc: 'GitHub OAuth App 配置、首位管理员认领、全站安全流控与 Docker / VPS 生产部署',
+    category: 'deployment',
+    content: `## 9.1 系统改造后的部署核心要点
+
+系统已全面改造为具备 **GitHub OAuth 2.0 身份鉴权**、**首位登入者自动锁定为管理员**、**访客提交仓库审核闭环** 以及 **全站高敏接口安全流控** 的工业级全栈架构。
+
+### 1. 核心环境变量
+- \`PORT\`: 生产监听端口（默认 \`3000\`）
+- \`NODE_ENV\`: \`production\`
+- \`APP_URL\`: 应用的公网访问根地址（例如 \`https://airam.yourdomain.com\`）
+- \`GITHUB_CLIENT_ID\`: GitHub OAuth App 客户端 ID
+- \`GITHUB_CLIENT_SECRET\`: GitHub OAuth App 客户端密钥
+
+### 2. GitHub OAuth App 创建步骤
+1. 打开 GitHub -> **Settings** -> **Developer settings** -> **OAuth Apps** -> **New OAuth App**；
+2. **Homepage URL**: 填入应用公网地址，如 \`https://airam.yourdomain.com\`；
+3. **Authorization callback URL**: 严格填入 \`https://airam.yourdomain.com/auth/callback\`；
+4. 点击创建并生成 Client Secret，妥善记录。
+
+### 3. 首位管理员开箱认领 (First-User Claim)
+部署成功后，任何人首次访问管理后台并完成 GitHub 登录，系统将自动将其加冕为系统唯一最高管理员 (\`role: 'admin'\`)，享有完全控制权；后续其他访客登录均为访客身份。若需重置席位，调用 \`POST /api/auth/reset-admin\` 即可。
+
+### 4. 访客提交与管理员审核闭环
+访客可在前台提交 GitHub 仓库，系统实时调用 GitHub API 校验星标与元数据并自动防重与限流；提交后进入待审核队列，管理员在后台「仓库审核」专栏一键批准后在前台精选永久展示。
+
+### 5. 全站安全流控保护 (Rate Limiting)
+- **GitHub 登入**：每分钟限 5 次请求，超出自动触发 HTTP 429 保护并在前端倒计时冷却；
+- **访客仓库提交**：单 IP / 访客每 10 分钟限提交 3 个仓库，每次提交间隔至少 20 秒。`,
+    codeSnippet: {
+      language: 'dockerfile',
+      filename: 'Dockerfile',
+      code: `FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+COPY package*.json ./
+RUN npm ci --only=production
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/server.ts ./server.ts
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.data ./.data
+EXPOSE 3000
+CMD ["npx", "tsx", "server.ts"]`
     }
   }
 ];

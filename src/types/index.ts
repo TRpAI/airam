@@ -103,3 +103,25 @@ export interface WebhookEventPayload {
     published_at: string;
   };
 }
+
+export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface RepoSubmission {
+  id: string;
+  repo_url: string;
+  owner: string;
+  name: string;
+  full_name: string;
+  description: string;
+  stars: number;
+  language: string;
+  homepage?: string;
+  submitter_login: string;
+  submitter_avatar?: string;
+  submitter_note?: string;
+  status: SubmissionStatus;
+  review_comment?: string;
+  created_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+}
