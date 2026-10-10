@@ -581,7 +581,7 @@ export default function App() {
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={() => setViewMode(viewMode === 'public' ? 'admin' : 'public')}
-              className="hover:text-zinc-900 dark:text-zinc-100 underline decoration-zinc-400/50 hover:decoration-zinc-900 dark:hover:decoration-zinc-100 transition-colors"
+              className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white underline decoration-zinc-400/60 hover:decoration-zinc-950 dark:hover:decoration-white transition-colors font-medium cursor-pointer"
             >
               切换至{viewMode === 'public' ? '管理后台' : '前台展示'}
             </button>

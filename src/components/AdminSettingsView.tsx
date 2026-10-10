@@ -148,16 +148,29 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
         </div>
 
         {/* Diagnostic Explanation Banner */}
-        <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 space-y-2 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-          <div className="font-semibold text-zinc-900 dark:text-zinc-200 flex items-center gap-1.5">
-            <HelpCircle className="h-3.5 w-3.5 text-blue-500" />
-            <span>为什么生产环境配置了环境变量依然提示「待配置凭据」？</span>
+        <div className="p-4 rounded-xl bg-sky-500/10 dark:bg-sky-950/20 border border-sky-500/30 space-y-2 text-[11px] leading-relaxed text-sky-900 dark:text-sky-200">
+          <div className="font-bold text-sky-950 dark:text-sky-100 flex items-center gap-1.5 text-xs">
+            <HelpCircle className="h-4 w-4 text-sky-500 shrink-0" />
+            <span>问：GitHub 认证与 OAuth 凭据这些不是应该在 Cloudflare 平台设置的变量吗？</span>
           </div>
           <p>
-            1. <strong>Cloudflare Pages 变量加载时机</strong>：在 Cloudflare Pages 后台配置的环境变量，需要触发一次<strong>重新部署 (Retry deployment)</strong> 才会注入到 Edge Functions 中。
-            <br />
-            2. <strong>即时生效方案</strong>：为了免去反复等待重新部署，您现在可以<strong>直接在下方表单中保存凭据</strong>，保存后前端与中枢将立刻就绪，永不再提示「待配置凭据」！
+            <strong>答：是的，完全正确！</strong> 凭据的标准规范就是在 Cloudflare 平台设置，无需把密钥打包进前端代码。
           </p>
+          <div className="p-2.5 rounded-lg bg-white/80 dark:bg-zinc-900/80 border border-sky-500/20 space-y-1.5 text-zinc-700 dark:text-zinc-300">
+            <div><strong>为什么在 Cloudflare 配置了环境变量后，依然提示「待配置凭据」？</strong></div>
+            <div>
+              1. <strong>Cloudflare 生效机制（关键点）</strong>：Cloudflare Pages 在后台保存环境变量后，<strong>不会自动更新已发布的当前部署</strong>。
+            </div>
+            <div>
+              2. <strong>必须操作</strong>：进入 Cloudflare Pages 控制台 → 点击 <strong>Deployments (部署)</strong> 选项卡 → 找到最新一条记录右侧的 <code>...</code> 菜单 → 点击 <strong>【Redeploy (重新部署)】</strong>，新的环境变量才会注入到运行实例中！
+            </div>
+            <div>
+              3. <strong>变量名称核对</strong>：请确认变量名为 <code>GITHUB_CLIENT_ID</code> 与 <code>GITHUB_CLIENT_SECRET</code>（大写），且在 <strong>Production</strong> 环境中已勾选/添加。
+            </div>
+            <div>
+              4. <strong>即时免等待通道</strong>：若您刚配置完不想等待 Cloudflare 重新部署构建，也可以直接在下方表单填入并保存，前端将秒级就绪！
+            </div>
+          </div>
         </div>
 
         {/* Callback URLs Grid */}

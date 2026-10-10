@@ -42,6 +42,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
   const [showConfigGuide, setShowConfigGuide] = useState(false);
   const [isWaitingOAuth, setIsWaitingOAuth] = useState(false);
   const [cooldown, setCooldown] = useState<number>(0);
+  const [quickClientId, setQuickClientId] = useState('');
+  const [showQuickInput, setShowQuickInput] = useState(false);
+
+  const handleQuickSave = () => {
+    if (!quickClientId.trim()) return;
+    localStorage.setItem('airam_client_id', quickClientId.trim());
+    window.location.reload();
+  };
 
   // Handle rate limit countdown
   useEffect(() => {
@@ -232,26 +240,74 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             <div className="space-y-4">
               
               {/* OAuth Status Indicator */}
-              <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 text-xs font-mono space-y-1.5">
+              <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-zinc-500">OAuth 服务状态:</span>
+                  <span className="text-zinc-500 font-mono">Cloudflare 环境变量状态:</span>
                   {oauthStatus?.configured ? (
-                    <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       已就绪 ({oauthStatus.clientId})
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                      待配置凭据 (环境变量)
+                      待生效 (需 Redeploy 重新部署)
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-zinc-400 flex items-center justify-between">
-                  <span>授权方式:</span>
-                  <span className="text-zinc-600 dark:text-zinc-300">独立弹出窗口 (Popup Flow)</span>
+                <div className="text-[11px] text-zinc-400 flex items-center justify-between font-mono">
+                  <span>授权链路:</span>
+                  <span className="text-zinc-600 dark:text-zinc-300">GitHub OAuth 2.0 (独立弹窗)</span>
                 </div>
               </div>
+
+              {/* Notice for Cloudflare Redeploy & Quick Input */}
+              {!oauthStatus?.configured && (
+                <div className="p-3.5 rounded-xl border border-amber-500/25 bg-amber-500/10 dark:bg-amber-950/20 text-xs space-y-2.5 text-amber-900 dark:text-amber-200 animate-in fade-in">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="font-semibold text-amber-950 dark:text-amber-100">
+                        已经在 Cloudflare 平台配置了环境变量？
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-amber-800/90 dark:text-amber-300/90">
+                        <strong>这完全正确！</strong> Cloudflare Pages 机制要求：在 Settings 添加环境变量后，<strong>必须前往 Deployments (部署) 菜单，点击最新部署右侧【Redeploy (重新部署)】</strong>，新的环境变量才会注入给当前生产实例。
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Fast bypass option without waiting */}
+                  <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between text-[11px]">
+                    <span className="text-zinc-600 dark:text-zinc-400">不想等待 Cloudflare 部署？</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickInput(!showQuickInput)}
+                      className="text-amber-700 dark:text-amber-400 font-medium hover:underline cursor-pointer"
+                    >
+                      {showQuickInput ? '收起快速输入' : '直接填入 Client ID 立即体验 →'}
+                    </button>
+                  </div>
+
+                  {showQuickInput && (
+                    <div className="pt-1.5 space-y-2">
+                      <input
+                        type="text"
+                        value={quickClientId}
+                        onChange={(e) => setQuickClientId(e.target.value)}
+                        placeholder="粘贴 GitHub OAuth Client ID (如 Ov23li...)"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-amber-500/40 bg-white dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 font-mono placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleQuickSave}
+                        className="w-full py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs transition-colors cursor-pointer"
+                      >
+                        立即保存并就绪
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Primary OAuth Action Button */}
               <button

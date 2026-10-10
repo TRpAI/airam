@@ -3,11 +3,25 @@
 @variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  :root {
+    --font-sans: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'PingFang SC', 'Microsoft YaHei', monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-sans);
+    letter-spacing: -0.011em;
   }
   
-  code, pre, kbd {
-    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* Fallback mono font chain to prevent jagged SimSun rendering for Chinese text */
+  code, pre, kbd, .font-mono {
+    font-family: var(--font-mono);
   }
 }

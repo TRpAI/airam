@@ -16,6 +16,7 @@ import {
   Plus,
   Users,
   ShieldCheck,
+  Shield,
   MessageSquare
 } from 'lucide-react';
 import { KnowledgeItem, Project, GitHubRepository, RepoSubmission } from '../types';
@@ -89,14 +90,22 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
             </div>
           </div>
 
-          {/* Action: Submit Repository Button */}
-          <div className="flex items-center gap-2 self-start sm:self-center">
+          {/* Actions: Submit Repo & Switch to Admin */}
+          <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
             <button
               onClick={onOpenSubmitRepo}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>提交开源仓库</span>
+            </button>
+            <button
+              onClick={onGoToAdmin}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-200 dark:border-zinc-700/80 bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-950 dark:hover:text-white shadow-xs transition-colors cursor-pointer"
+              title="切换至系统管理控制台"
+            >
+              <Shield className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+              <span>管理后台</span>
             </button>
           </div>
         </div>

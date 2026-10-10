@@ -6,7 +6,9 @@ import {
   Laptop, 
   LogOut,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  Shield,
+  Globe
 } from 'lucide-react';
 import { ThemeMode } from '../hooks/useTheme';
 import { GitHubUser } from '../types/auth';
@@ -111,6 +113,29 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right Tools */}
         <div className="flex items-center gap-2">
           
+          {/* View Mode Switcher (前台展示 <-> 管理后台) */}
+          <button
+            onClick={() => setViewMode(viewMode === 'public' ? 'admin' : 'public')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-all cursor-pointer ${
+              viewMode === 'public'
+                ? 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-950 dark:hover:text-white'
+                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
+            }`}
+            title={viewMode === 'public' ? '切换至管理后台控制台' : '切换至前台公开展示'}
+          >
+            {viewMode === 'public' ? (
+              <>
+                <Shield className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-medium">管理后台</span>
+              </>
+            ) : (
+              <>
+                <Globe className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="font-medium">前台展示</span>
+              </>
+            )}
+          </button>
+
           {/* Quick Search */}
           <button
             onClick={onOpenSearch}
