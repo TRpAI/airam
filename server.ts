@@ -595,6 +595,13 @@ async function startServer() {
                   window.close();
                 }, 750);
               } else {
+                try {
+                  localStorage.setItem('devhub_auth_session', JSON.stringify({
+                    isAuthenticated: true,
+                    user: userData,
+                    token: accessToken
+                  }));
+                } catch (e) {}
                 window.location.href = '/';
               }
             </script>

@@ -128,48 +128,35 @@ export function useAuth() {
     return () => window.removeEventListener('message', handleMessage);
   }, [refreshOAuthStatus]);
 
-  // 1. Primary: Login via GitHub OAuth Popup
-  const loginWithOAuth = async (): Promise<{ success: boolean; error?: string }> => {
+  // Helper to build direct GitHub OAuth authorize URL synchronously
+  const getOAuthAuthorizeUrl = useCallback((customClientId?: string): string => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const redirectUri = `${origin.replace(/\/$/, '')}/auth/callback`;
+    const clientId = 
+      customClientId ||
+      oauthStatus?.clientId || 
+      localStorage.getItem('airam_client_id') || 
+      (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
+      'Ov23livHPHWaIViY0yP0';
+
+    if (!clientId) return '';
+
+    const state = Math.random().toString(36).substring(2, 15);
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'read:user user:email repo',
+      state,
+    });
+    return `https://github.com/login/oauth/authorize?${params.toString()}`;
+  }, [oauthStatus?.clientId]);
+
+  // 1. Primary: Login via GitHub OAuth (Immediate synchronous popup with auto-redirect fallback)
+  const loginWithOAuth = async (forceDirectRedirect = false): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     try {
-      const origin = encodeURIComponent(window.location.origin);
-      let authUrl = '';
-      let clientId = '';
-
-      try {
-        const res = await fetch(`/api/auth/url?origin=${origin}`);
-        if (res.ok) {
-          const text = await res.text();
-          const data = JSON.parse(text);
-          if (data.url && data.configured) {
-            authUrl = data.url;
-            clientId = data.clientId;
-          }
-        }
-      } catch {
-        // Fallback to client-side OAuth URL generation
-      }
-
-      // If server didn't generate URL, check client credentials
-      if (!authUrl) {
-        const localClientId = 
-          localStorage.getItem('airam_client_id') || 
-          (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
-          '';
-
-        if (localClientId) {
-          const redirectUri = `${window.location.origin}/auth/callback`;
-          const state = Math.random().toString(36).substring(2, 15);
-          const params = new URLSearchParams({
-            client_id: localClientId,
-            redirect_uri: redirectUri,
-            response_type: 'code',
-            scope: 'read:user user:email repo',
-            state,
-          });
-          authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
-        }
-      }
+      const authUrl = getOAuthAuthorizeUrl();
 
       if (!authUrl) {
         setLoading(false);
@@ -179,26 +166,37 @@ export function useAuth() {
         };
       }
 
-      // Open OAuth provider popup directly
-      const width = 600;
-      const height = 740;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-
-      const authWindow = window.open(
-        authUrl,
-        'github_oauth_popup',
-        `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`
-      );
-
-      if (!authWindow) {
-        setLoading(false);
-        return {
-          success: false,
-          error: '浏览器拦截了授权弹窗，请允许当前页面的弹出式窗口后重试。',
-        };
+      // If user requested direct redirect or on mobile/special browser
+      if (forceDirectRedirect) {
+        window.location.href = authUrl;
+        return { success: true };
       }
 
+      // 1. Open popup window SYNCHRONOUSLY directly inside user gesture so browser NEVER blocks it
+      const width = 600;
+      const height = 740;
+      const left = Math.max(0, Math.round(window.screen.width / 2 - width / 2));
+      const top = Math.max(0, Math.round(window.screen.height / 2 - height / 2));
+
+      let authWindow: Window | null = null;
+      try {
+        authWindow = window.open(
+          authUrl,
+          'github_oauth_popup',
+          `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`
+        );
+      } catch {
+        authWindow = null;
+      }
+
+      // 2. If browser blocked popup (e.g. strict iframe or popup blocker active), fallback to same-window navigation
+      if (!authWindow || authWindow.closed) {
+        console.warn('Popup window could not open, falling back to direct navigation for GitHub authorization.');
+        window.location.href = authUrl;
+        return { success: true };
+      }
+
+      // Popup successfully opened
       return { success: true };
     } catch (err: any) {
       setLoading(false);
@@ -361,6 +359,7 @@ export function useAuth() {
     loginWithOAuth,
     loginWithToken,
     loginWithDemo,
+    getOAuthAuthorizeUrl,
     resetAdminSeat,
     saveCustomCredentials,
     refreshOAuthStatus,

@@ -19,7 +19,7 @@ import {
 import { OAuthStatus } from '../types/auth';
 
 interface AdminLoginProps {
-  onLoginOAuth: () => Promise<{ success: boolean; error?: string }>;
+  onLoginOAuth: (forceDirectRedirect?: boolean) => Promise<{ success: boolean; error?: string }>;
   onLoginToken: (token: string) => Promise<void>;
   onLoginDemo: (username?: string) => Promise<void>;
   loading: boolean;
@@ -75,18 +75,29 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
     : `${currentOrigin}/auth/callback`;
   const localDevCallbackUrl = 'http://localhost:3000/auth/callback';
 
+  // Compute direct GitHub OAuth authorization URL
+  const activeClientId = 
+    oauthStatus?.clientId || 
+    localStorage.getItem('airam_client_id') || 
+    (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
+    'Ov23livHPHWaIViY0yP0';
+
+  const directOAuthUrl = `https://github.com/login/oauth/authorize?client_id=${activeClientId}&redirect_uri=${encodeURIComponent(
+    `${currentOrigin.replace(/\/$/, '')}/auth/callback`
+  )}&response_type=code&scope=read%3Auser+user%3Aemail+repo&state=admin_login_${Date.now()}`;
+
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const handleOAuthClick = async () => {
+  const handleOAuthClick = async (forceDirect = false) => {
     if (cooldown > 0) return;
     setError(null);
     setIsWaitingOAuth(true);
     try {
-      const result = await onLoginOAuth();
+      const result = await onLoginOAuth(forceDirect);
       if (!result.success) {
         const errorMsg = result.error || '发起 GitHub 授权失败';
         setError(errorMsg);
@@ -312,9 +323,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
               {/* Primary OAuth Action Button */}
               <button
                 type="button"
-                onClick={handleOAuthClick}
+                onClick={() => handleOAuthClick(false)}
                 disabled={loading || isWaitingOAuth || cooldown > 0}
-                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 text-xs shadow-sm min-h-[46px]"
+                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 text-xs shadow-sm min-h-[46px] cursor-pointer"
               >
                 {cooldown > 0 ? (
                   <>
@@ -337,6 +348,32 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Fallback Direct Link if Popup Blocked */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px] font-mono px-1 py-1 rounded-lg bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-500">
+                <span>未弹出授权窗口？</span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={directOAuthUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-medium"
+                    title="在新标签页直接打开 GitHub 授权页面"
+                  >
+                    <span>新标签页直接打开</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                  <button
+                    type="button"
+                    onClick={() => handleOAuthClick(true)}
+                    className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white underline cursor-pointer"
+                    title="在当前窗口直接跳转授权（无需任何弹窗）"
+                  >
+                    整页跳转授权
+                  </button>
+                </div>
+              </div>
 
               {/* OAuth Setup Helper toggle */}
               <div className="pt-1">
