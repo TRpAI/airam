@@ -1,26 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
-  Key, 
-  AlertCircle, 
-  Copy, 
-  Check, 
   ExternalLink, 
-  HelpCircle, 
   Sparkles,
-  ShieldAlert,
   ShieldCheck,
   Terminal,
   Loader2,
   Crown,
-  UserCheck,
-  Clock
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { OAuthStatus } from '../types/auth';
 
 interface AdminLoginProps {
   onLoginOAuth: (forceDirectRedirect?: boolean) => Promise<{ success: boolean; error?: string }>;
-  onLoginToken: (token: string) => Promise<void>;
   onLoginDemo: (username?: string) => Promise<void>;
   loading: boolean;
   oauthStatus: OAuthStatus | null;
@@ -29,27 +22,14 @@ interface AdminLoginProps {
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({
   onLoginOAuth,
-  onLoginToken,
   onLoginDemo,
   loading,
   oauthStatus,
   onReturnToPublic,
 }) => {
-  const [activeTab, setActiveTab] = useState<'oauth' | 'token' | 'demo'>('oauth');
-  const [token, setToken] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [showConfigGuide, setShowConfigGuide] = useState(false);
   const [isWaitingOAuth, setIsWaitingOAuth] = useState(false);
   const [cooldown, setCooldown] = useState<number>(0);
-  const [quickClientId, setQuickClientId] = useState('');
-  const [showQuickInput, setShowQuickInput] = useState(false);
-
-  const handleQuickSave = () => {
-    if (!quickClientId.trim()) return;
-    localStorage.setItem('airam_client_id', quickClientId.trim());
-    window.location.reload();
-  };
 
   // Handle rate limit countdown
   useEffect(() => {
@@ -68,33 +48,26 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
     }
   };
 
-  // Cloudflare 生产环境与本地开发环境回调地址 (其他部署环境已全面移除)
+  // Direct GitHub OAuth authorization URL from Cloudflare environment
   const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://airam.pages.dev';
-  const cloudflarePagesCallbackUrl = currentOrigin.includes('localhost') 
-    ? 'https://airam.pages.dev/auth/callback' 
-    : `${currentOrigin}/auth/callback`;
-  const localDevCallbackUrl = 'http://localhost:3000/auth/callback';
+  const activeClientId = oauthStatus?.clientId || (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || '';
+  const isConfigured = Boolean(oauthStatus?.configured || activeClientId);
 
-  // Compute direct GitHub OAuth authorization URL
-  const activeClientId = 
-    oauthStatus?.clientId || 
-    localStorage.getItem('airam_client_id') || 
-    (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
-    'Ov23livHPHWaIViY0yP0';
-
-  const directOAuthUrl = `https://github.com/login/oauth/authorize?client_id=${activeClientId}&redirect_uri=${encodeURIComponent(
-    `${currentOrigin.replace(/\/$/, '')}/auth/callback`
-  )}&response_type=code&scope=read%3Auser+user%3Aemail+repo&state=admin_login_${Date.now()}`;
-
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
+  const directOAuthUrl = activeClientId
+    ? `https://github.com/login/oauth/authorize?client_id=${activeClientId}&redirect_uri=${encodeURIComponent(
+        `${currentOrigin.replace(/\/$/, '')}/auth/callback`
+      )}&response_type=code&scope=read%3Auser+user%3Aemail+repo&state=admin_login_${Date.now()}`
+    : '';
 
   const handleOAuthClick = async (forceDirect = false) => {
     if (cooldown > 0) return;
     setError(null);
+
+    if (!isConfigured) {
+      setError('Cloudflare 环境变量 GITHUB_CLIENT_ID 尚未生效。请在 Cloudflare Pages 设置中确认环境变量并执行 Redeploy (重新部署)。');
+      return;
+    }
+
     setIsWaitingOAuth(true);
     try {
       const result = await onLoginOAuth(forceDirect);
@@ -102,9 +75,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         const errorMsg = result.error || '发起 GitHub 授权失败';
         setError(errorMsg);
         extractCooldown(errorMsg);
-        if (result.error?.includes('未配置')) {
-          setShowConfigGuide(true);
-        }
       }
     } catch (err: any) {
       const errorMsg = err?.message || '发起 GitHub 授权时发生错误';
@@ -112,23 +82,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
       extractCooldown(errorMsg);
     } finally {
       setIsWaitingOAuth(false);
-    }
-  };
-
-  const handleTokenSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (cooldown > 0) return;
-    if (!token.trim()) {
-      setError('请输入 GitHub Personal Access Token');
-      return;
-    }
-    setError(null);
-    try {
-      await onLoginToken(token.trim());
-    } catch (err: any) {
-      const errorMsg = err?.message || 'Token 验证失败，请确认权限包含 read:user';
-      setError(errorMsg);
-      extractCooldown(errorMsg);
     }
   };
 
@@ -155,7 +108,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         <div>
           <button
             onClick={onReturnToPublic}
-            className="flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>返回前台展示空间</span>
@@ -176,7 +129,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
               <h1 className="text-base sm:text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">
                 GitHub 身份鉴权登入
               </h1>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-mono">
                 单用户所有者安全边界 · GitHub OAuth 2.0 授权
               </p>
             </div>
@@ -210,147 +163,74 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             </div>
           )}
 
-          {/* Tab Selector (只在开发环境中显示演示体验，生产环境完全移除演示模式) */}
-          <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800/70 rounded-lg text-xs font-mono">
-            <button
-              onClick={() => { setActiveTab('oauth'); setError(null); }}
-              className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-all ${
-                activeTab === 'oauth'
-                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-              }`}
-            >
-              OAuth 授权登录
-            </button>
-            <button
-              onClick={() => { setActiveTab('token'); setError(null); }}
-              className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-all ${
-                activeTab === 'token'
-                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-              }`}
-            >
-              Token (PAT) 登入
-            </button>
-            {!import.meta.env.PROD && (
-              <button
-                onClick={() => { setActiveTab('demo'); setError(null); }}
-                className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-all ${
-                  activeTab === 'demo'
-                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-                }`}
-              >
-                演示体验 (开发)
-              </button>
-            )}
+          {/* OAuth Status Indicator */}
+          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 text-xs space-y-2 font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500">Cloudflare 环境变量:</span>
+              {isConfigured ? (
+                <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  已就绪 ({activeClientId ? `${activeClientId.substring(0, 6)}...` : 'Active'})
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  待生效 (需 Redeploy 重新部署)
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-zinc-400 flex items-center justify-between">
+              <span>授权链路:</span>
+              <span className="text-zinc-600 dark:text-zinc-300">GitHub OAuth 2.0 (生产环境变量)</span>
+            </div>
           </div>
 
-          {/* TAB 1: GitHub OAuth Flow */}
-          {activeTab === 'oauth' && (
-            <div className="space-y-4">
-              
-              {/* OAuth Status Indicator */}
-              <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 text-xs space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-500 font-mono">Cloudflare 环境变量状态:</span>
-                  {oauthStatus?.configured ? (
-                    <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      已就绪 ({oauthStatus.clientId})
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                      待生效 (需 Redeploy 重新部署)
-                    </span>
-                  )}
-                </div>
-                <div className="text-[11px] text-zinc-400 flex items-center justify-between font-mono">
-                  <span>授权链路:</span>
-                  <span className="text-zinc-600 dark:text-zinc-300">GitHub OAuth 2.0 (独立弹窗)</span>
-                </div>
+          {/* Cloudflare Unconfigured Reminder */}
+          {!isConfigured && (
+            <div className="p-3 rounded-xl border border-amber-500/25 bg-amber-500/10 dark:bg-amber-950/20 text-xs space-y-1.5 font-mono text-amber-900 dark:text-amber-200 animate-in fade-in">
+              <div className="flex items-center gap-1.5 font-semibold text-amber-950 dark:text-amber-100">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <span>环境变量生效提醒</span>
               </div>
+              <p className="text-[11px] leading-relaxed text-amber-800/90 dark:text-amber-300/90">
+                在 Cloudflare Pages 设置环境变量后，必须进入 <strong>Deployments (部署)</strong> 菜单点击最新记录的 <strong>Redeploy (重新部署)</strong>，变量才会注入到当前实例。
+              </p>
+            </div>
+          )}
 
-              {/* Notice for Cloudflare Redeploy & Quick Input */}
-              {!oauthStatus?.configured && (
-                <div className="p-3.5 rounded-xl border border-amber-500/25 bg-amber-500/10 dark:bg-amber-950/20 text-xs space-y-2.5 text-amber-900 dark:text-amber-200 animate-in fade-in">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <div className="font-semibold text-amber-950 dark:text-amber-100">
-                        已经在 Cloudflare 平台配置了环境变量？
-                      </div>
-                      <p className="text-[11px] leading-relaxed text-amber-800/90 dark:text-amber-300/90">
-                        <strong>这完全正确！</strong> Cloudflare Pages 机制要求：在 Settings 添加环境变量后，<strong>必须前往 Deployments (部署) 菜单，点击最新部署右侧【Redeploy (重新部署)】</strong>，新的环境变量才会注入给当前生产实例。
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Fast bypass option without waiting */}
-                  <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between text-[11px]">
-                    <span className="text-zinc-600 dark:text-zinc-400">不想等待 Cloudflare 部署？</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickInput(!showQuickInput)}
-                      className="text-amber-700 dark:text-amber-400 font-medium hover:underline cursor-pointer"
-                    >
-                      {showQuickInput ? '收起快速输入' : '直接填入 Client ID 立即体验 →'}
-                    </button>
-                  </div>
-
-                  {showQuickInput && (
-                    <div className="pt-1.5 space-y-2">
-                      <input
-                        type="text"
-                        value={quickClientId}
-                        onChange={(e) => setQuickClientId(e.target.value)}
-                        placeholder="粘贴 GitHub OAuth Client ID (如 Ov23li...)"
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-amber-500/40 bg-white dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 font-mono placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleQuickSave}
-                        className="w-full py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs transition-colors cursor-pointer"
-                      >
-                        立即保存并就绪
-                      </button>
-                    </div>
-                  )}
-                </div>
+          {/* Primary OAuth Action Button */}
+          <div className="space-y-3 font-mono">
+            <button
+              type="button"
+              onClick={() => handleOAuthClick(false)}
+              disabled={loading || isWaitingOAuth || cooldown > 0}
+              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 text-xs shadow-sm min-h-[46px] cursor-pointer"
+            >
+              {cooldown > 0 ? (
+                <>
+                  <Clock className="h-4 w-4 animate-spin text-amber-500" />
+                  <span>登录冷却保护中 ({cooldown}s)</span>
+                </>
+              ) : isWaitingOAuth ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                  <span>正在等待 GitHub 授权确认...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                  <span>
+                    {!hasRegisteredAdmin ? '以 GitHub 授权并绑定为管理员' : '使用 GitHub 账号授权登录'}
+                  </span>
+                </>
               )}
+            </button>
 
-              {/* Primary OAuth Action Button */}
-              <button
-                type="button"
-                onClick={() => handleOAuthClick(false)}
-                disabled={loading || isWaitingOAuth || cooldown > 0}
-                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 text-xs shadow-sm min-h-[46px] cursor-pointer"
-              >
-                {cooldown > 0 ? (
-                  <>
-                    <Clock className="h-4 w-4 animate-spin text-amber-500" />
-                    <span>登录冷却保护中 ({cooldown}s)</span>
-                  </>
-                ) : isWaitingOAuth ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-                    <span>正在等待 GitHub 授权确认...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
-                      <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                    </svg>
-                    <span>
-                      {!hasRegisteredAdmin ? '以 GitHub 授权并绑定为管理员' : '使用 GitHub 账号授权登录'}
-                    </span>
-                  </>
-                )}
-              </button>
-
-              {/* Fallback Direct Link if Popup Blocked */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px] font-mono px-1 py-1 rounded-lg bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-500">
+            {/* Direct Fallback Option if Popup Blocked */}
+            {directOAuthUrl && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-1.5 text-[11px] px-1 py-1 rounded-lg bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-500">
                 <span>未弹出授权窗口？</span>
                 <div className="flex items-center gap-2">
                   <a
@@ -368,181 +248,41 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                     type="button"
                     onClick={() => handleOAuthClick(true)}
                     className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-white underline cursor-pointer"
-                    title="在当前窗口直接跳转授权（无需任何弹窗）"
+                    title="在当前窗口直接跳转授权（无需弹窗）"
                   >
                     整页跳转授权
                   </button>
                 </div>
               </div>
+            )}
+          </div>
 
-              {/* OAuth Setup Helper toggle */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowConfigGuide(!showConfigGuide)}
-                  className="w-full flex items-center justify-between text-[11px] font-mono text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 py-1 transition-colors"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <HelpCircle className="h-3.5 w-3.5" />
-                    <span>查看 GitHub OAuth App 配置与回调 URL</span>
-                  </span>
-                  <span>{showConfigGuide ? '收起 ▲' : '展开 ▼'}</span>
-                </button>
-
-                {showConfigGuide && (
-                  <div className="mt-2.5 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-xs font-mono space-y-3 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between text-zinc-900 dark:text-zinc-200 font-semibold text-[11px]">
-                      <span>OAuth 配置指引</span>
-                      <a
-                        href="https://github.com/settings/developers"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-500 hover:underline flex items-center gap-1"
-                      >
-                        <span>GitHub Developers</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-
-                    <div className="space-y-2 text-[11px]">
-                      <div>
-                        <span className="text-zinc-500 block mb-1">1. Cloudflare 生产环境回调 (Pages / 线上):</span>
-                        <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[10px] break-all">
-                          <code className="text-zinc-700 dark:text-zinc-300">{cloudflarePagesCallbackUrl}</code>
-                          <button
-                            onClick={() => copyToClipboard(cloudflarePagesCallbackUrl, 'cf')}
-                            className="p-1 hover:text-zinc-900 dark:hover:text-zinc-100 shrink-0"
-                            title="复制"
-                          >
-                            {copiedKey === 'cf' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="text-zinc-500 block mb-1">2. 本地开发环境回调 (Local Dev):</span>
-                        <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[10px] break-all">
-                          <code className="text-zinc-700 dark:text-zinc-300">{localDevCallbackUrl}</code>
-                          <button
-                            onClick={() => copyToClipboard(localDevCallbackUrl, 'dev')}
-                            className="p-1 hover:text-zinc-900 dark:hover:text-zinc-100 shrink-0"
-                            title="复制"
-                          >
-                            {copiedKey === 'dev' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] leading-relaxed">
-                        在 Cloudflare Pages 项目设置 <strong>Settings -&gt; Environment variables</strong> 或 <code>.env</code> 中添加：
-                        <br />
-                        <code>GITHUB_CLIENT_ID</code> &amp; <code>GITHUB_CLIENT_SECRET</code>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: Personal Access Token (PAT) */}
-          {activeTab === 'token' && (
-            <form onSubmit={handleTokenSubmit} className="space-y-4 font-mono text-xs">
-              <div>
-                <label className="flex items-center justify-between text-zinc-500 mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <Key className="h-3.5 w-3.5" />
-                    <span>Personal Access Token</span>
-                  </span>
-                  <a
-                    href="https://github.com/settings/tokens/new?scopes=read:user,repo"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5"
-                  >
-                    <span>新建 Token</span>
-                    <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
-                </label>
-                <input
-                  type="password"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:border-zinc-500 min-h-[42px]"
-                />
-                <div className="text-[10px] text-zinc-400 mt-1">
-                  需具备 <code>read:user</code> 权限，免 OAuth App 审核即开即用。
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || !token.trim()}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 text-xs min-h-[44px]"
-              >
-                <Key className="h-3.5 w-3.5" />
-                <span>
-                  {loading ? '正在验证 Token...' : (!hasRegisteredAdmin ? '验证 Token 并绑定为管理员' : '验证 Token 并登入')}
-                </span>
-              </button>
-            </form>
-          )}
-
-          {/* TAB 3: Quick Demo Access */}
-          {activeTab === 'demo' && (
-            <div className="space-y-4 font-mono text-xs">
-              <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 space-y-2">
-                <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold">
-                  <Sparkles className="h-4 w-4 text-emerald-500" />
-                  <span>快捷演示账号</span>
-                </div>
-                <p className="text-[11px] text-zinc-500 leading-relaxed">
-                  以 <code>@osahermes</code> 演示账号身份快捷载入后台，用于在无需绑定账号时即时体验知识库管理中枢。
-                </p>
-              </div>
-
+          {/* Development Demo Access (Only visible in development mode) */}
+          {!import.meta.env.PROD && (
+            <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
               <button
                 type="button"
                 onClick={handleDemoLogin}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 text-xs min-h-[44px]"
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium text-xs transition-colors cursor-pointer font-mono"
               >
-                <Terminal className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{loading ? '正在载入...' : '以 @osahermes 演示登入'}</span>
+                <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                <span>开发环境：快捷以 @osahermes 体验</span>
               </button>
             </div>
           )}
 
-          {/* Rate Limit Active Cooldown Banner */}
-          {cooldown > 0 && (
-            <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-mono flex items-start gap-2 animate-in fade-in">
-              <Clock className="h-4 w-4 shrink-0 mt-0.5 animate-spin" />
-              <div className="space-y-0.5">
-                <span className="font-semibold block">登录流控保护中</span>
-                <span className="leading-relaxed text-[11px]">
-                  操作过于频繁，系统已触发安全保护。请等待 <strong>{cooldown}</strong> 秒后再试。
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Error Banner */}
+          {/* Error Message */}
           {error && (
-            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-2 animate-in fade-in">
+            <div className="p-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-mono flex items-start gap-2 animate-in fade-in">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <span className="font-semibold block">登录异常</span>
-                <span className="leading-relaxed">{error}</span>
+                <span className="font-semibold block">登入未完成:</span>
+                <span className="leading-relaxed text-[11px]">{error}</span>
               </div>
             </div>
           )}
 
-          {/* Security Notice */}
-          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 text-[11px] text-zinc-400 leading-relaxed text-center space-y-1">
-            <div>前台展示空间面向访客公开浏览；后台仅管理员享有完全写权限。</div>
-            <div className="text-[10px] text-zinc-500">⚡ 频率限制：GitHub 登入接口每分钟上限 5 次请求。</div>
-          </div>
         </div>
 
       </div>

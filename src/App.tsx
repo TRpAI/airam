@@ -75,13 +75,11 @@ export default function App() {
     isAuthenticated, 
     user, 
     loginWithOAuth, 
-    loginWithToken, 
     loginWithDemo, 
     logout, 
     loading: authLoading,
     oauthStatus,
     resetAdminSeat,
-    saveCustomCredentials,
     refreshOAuthStatus
   } = useAuth();
 
@@ -367,7 +365,6 @@ export default function App() {
             {!isAuthenticated ? (
               <AdminLogin
                 onLoginOAuth={loginWithOAuth}
-                onLoginToken={loginWithToken}
                 onLoginDemo={loginWithDemo}
                 loading={authLoading}
                 oauthStatus={oauthStatus}
@@ -550,7 +547,6 @@ export default function App() {
                     oauthStatus={oauthStatus}
                     onRefreshOAuthStatus={refreshOAuthStatus}
                     onResetAdmin={resetAdminSeat}
-                    onSaveCredentials={saveCustomCredentials}
                     onPurgeDemoData={handlePurgeAllDemoData}
                     knowledgeCount={knowledge.length}
                     projectsCount={projects.length}

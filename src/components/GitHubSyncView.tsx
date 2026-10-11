@@ -29,7 +29,6 @@ export const GitHubSyncView: React.FC<GitHubSyncViewProps> = ({
   isSyncing,
 }) => {
   const [newRepoInput, setNewRepoInput] = useState('');
-  const [personalToken, setPersonalToken] = useState('');
   const [isFetchingNew, setIsFetchingNew] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [fetchSuccessMsg, setFetchSuccessMsg] = useState<string | null>(null);
@@ -58,7 +57,7 @@ export const GitHubSyncView: React.FC<GitHubSyncViewProps> = ({
     setFetchSuccessMsg(null);
 
     try {
-      const { repo } = await fetchPublicGitHubRepo(parts[0], parts[1], personalToken || undefined);
+      const { repo } = await fetchPublicGitHubRepo(parts[0], parts[1]);
       onAddRepo(repo, true);
       setFetchSuccessMsg(`已纳管 ${repo.full_name}，自动同步 README 并生成项目卡片。`);
       setNewRepoInput('');
@@ -163,15 +162,10 @@ export const GitHubSyncView: React.FC<GitHubSyncViewProps> = ({
               ))}
             </div>
 
-            {/* Optional Token */}
-            <div>
-              <input
-                type="password"
-                value={personalToken}
-                onChange={(e) => setPersonalToken(e.target.value)}
-                placeholder="可选: GitHub Personal Access Token (访问私有库或免限流)"
-                className="w-full px-3 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 text-[11px] focus:outline-none focus:border-zinc-500"
-              />
+            {/* Cloudflare Env Token Policy */}
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-mono py-0.5">
+              <KeyRound className="h-3 w-3 text-emerald-500 shrink-0" />
+              <span>Token 密钥由 Cloudflare 环境变量 GITHUB_TOKEN 自动提供</span>
             </div>
 
             {fetchError && (

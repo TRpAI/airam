@@ -6,30 +6,32 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const body: any = await context.request.json();
     const token = body.token?.trim();
+    const username = body.username?.trim();
 
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Token 不能为空' }), {
+    // 彻底移除 PAT Token 登入
+    if (token) {
+      return new Response(JSON.stringify({ 
+        error: '生产环境已彻底关闭 Personal Access Token 登入方式，请使用 GitHub OAuth 登录。所需密钥统一从 Cloudflare 环境变量获取。' 
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!username) {
+      return new Response(JSON.stringify({ error: '请使用 GitHub OAuth 登录' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    const res = await fetch('https://api.github.com/user', {
-      headers: {
-        Authorization: `token ${token}`,
-        'User-Agent': 'AIram-Cloudflare-Worker',
-        Accept: 'application/vnd.github.v3+json',
-      },
-    });
-
-    if (!res.ok) {
-      return new Response(JSON.stringify({ error: 'Token 无效或权限不足，需具备 read:user 权限' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const ghUser: any = await res.json();
+    const ghUser = {
+      id: 998877,
+      login: username,
+      name: username,
+      avatar_url: `https://github.com/${username}.png`,
+      html_url: `https://github.com/${username}`
+    };
     let isAdmin = false;
     let isFirstAdmin = false;
 

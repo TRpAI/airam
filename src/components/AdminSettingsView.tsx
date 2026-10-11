@@ -1,24 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   ShieldCheck, 
   Key, 
   Trash2, 
   RefreshCw, 
-  ExternalLink, 
-  Copy, 
-  Check, 
   AlertCircle, 
   Crown, 
   Clock, 
   Download, 
   Sliders, 
-  Terminal, 
-  HelpCircle,
   Database,
-  CloudLightning,
-  CheckCircle2,
-  Lock,
-  Save
+  CloudLightning
 } from 'lucide-react';
 import { GitHubUser, OAuthStatus } from '../types/auth';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -28,7 +20,6 @@ interface AdminSettingsViewProps {
   oauthStatus: OAuthStatus | null;
   onRefreshOAuthStatus: () => Promise<OAuthStatus | null>;
   onResetAdmin: () => Promise<void>;
-  onSaveCredentials: (clientId: string, clientSecret: string, token?: string) => void;
   onPurgeDemoData: () => void;
   knowledgeCount: number;
   projectsCount: number;
@@ -40,53 +31,19 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   oauthStatus,
   onRefreshOAuthStatus,
   onResetAdmin,
-  onSaveCredentials,
   onPurgeDemoData,
   knowledgeCount,
   projectsCount,
   reposCount,
 }) => {
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Editable credentials state
-  const [clientIdInput, setClientIdInput] = useState(() => {
-    return localStorage.getItem('airam_client_id') || '';
-  });
-  const [clientSecretInput, setClientSecretInput] = useState(() => {
-    return localStorage.getItem('airam_client_secret') || '';
-  });
-  const [tokenInput, setTokenInput] = useState(() => {
-    return localStorage.getItem('airam_github_token') || '';
-  });
-
-  const { isInstallable, isInstalled, isInIframe, install, openInStandaloneWindow } = usePWAInstall();
-
-  // Current domain & callback URLs
-  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://airam.pages.dev';
-  const cloudflarePagesCallbackUrl = currentOrigin.includes('localhost') 
-    ? 'https://airam.pages.dev/auth/callback' 
-    : `${currentOrigin}/auth/callback`;
-  const localDevCallbackUrl = 'http://localhost:3000/auth/callback';
+  const { isInstalled, install } = usePWAInstall();
 
   const isProduction = import.meta.env.PROD;
   const isPurged = localStorage.getItem('airam_demo_purged') === 'true' || isProduction;
-
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
-
-  const handleSaveCredentials = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSaveCredentials(clientIdInput.trim(), clientSecretInput.trim(), tokenInput.trim());
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
-  };
 
   const handleRefreshStatus = async () => {
     setRefreshing(true);
@@ -110,187 +67,135 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
             </h1>
           </div>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-            仅限最高管理员访问 · 管理运行环境、GitHub OAuth 凭据、安全频率限制与数据资产
+            仅限最高管理员访问 · 管理运行环境、Cloudflare 环境变量诊断、安全频率限制与数据资产
           </p>
         </div>
 
         <button
           onClick={handleRefreshStatus}
           disabled={refreshing}
-          className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors shadow-xs"
+          className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors shadow-xs cursor-pointer"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-emerald-500' : ''}`} />
           <span>刷新环境诊断</span>
         </button>
       </div>
 
-      {/* SECTION 1: Credentials Diagnostic & Quick In-App Config */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 p-5 sm:p-6 shadow-xs space-y-5">
+      {/* SECTION 1: Cloudflare Environment Variables Diagnostic */}
+      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/70 p-5 sm:p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-3">
           <div className="flex items-center gap-2">
-            <Key className="h-4 w-4 text-emerald-500" />
+            <CloudLightning className="h-4 w-4 text-emerald-500" />
             <span className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
-              GitHub 认证与 OAuth 凭据状态
+              GitHub 云端环境变量状态 (Cloudflare Pages)
             </span>
           </div>
 
           {oauthStatus?.configured ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              凭据已就绪 ({oauthStatus.clientId || 'Client ID Active'})
+              生产环境变量已就绪
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold border border-amber-500/20">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              待配置凭据 (环境变量)
+              等待 Cloudflare 变量注入
             </span>
           )}
         </div>
 
-        {/* Diagnostic Explanation Banner */}
-        <div className="p-4 rounded-xl bg-sky-500/10 dark:bg-sky-950/20 border border-sky-500/30 space-y-2 text-[11px] leading-relaxed text-sky-900 dark:text-sky-200">
-          <div className="font-bold text-sky-950 dark:text-sky-100 flex items-center gap-1.5 text-xs">
-            <HelpCircle className="h-4 w-4 text-sky-500 shrink-0" />
-            <span>问：GitHub 认证与 OAuth 凭据这些不是应该在 Cloudflare 平台设置的变量吗？</span>
+        {/* Security & Variable Policy Note */}
+        <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-300 space-y-1.5">
+          <div className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+            <Key className="h-3.5 w-3.5 text-emerald-500" />
+            <span>生产环境零信任密钥安全规范</span>
           </div>
           <p>
-            <strong>答：是的，完全正确！</strong> 凭据的标准规范就是在 Cloudflare 平台设置，无需把密钥打包进前端代码。
+            GitHub 凭据已由 Cloudflare Pages 环境变量全局管理。系统严格遵循生产安全基线：<strong>所有 Token 与 Secret 均通过 Cloudflare 平台环境变量读取</strong>，已彻底移除前端本地明文存储与个人 Token (PAT) 登入方式，确保密钥永不泄漏。
           </p>
-          <div className="p-2.5 rounded-lg bg-white/80 dark:bg-zinc-900/80 border border-sky-500/20 space-y-1.5 text-zinc-700 dark:text-zinc-300">
-            <div><strong>为什么在 Cloudflare 配置了环境变量后，依然提示「待配置凭据」？</strong></div>
-            <div>
-              1. <strong>Cloudflare 生效机制（关键点）</strong>：Cloudflare Pages 在后台保存环境变量后，<strong>不会自动更新已发布的当前部署</strong>。
+        </div>
+
+        {/* 3 Cloudflare Environment Variables Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* GITHUB_CLIENT_ID */}
+          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-200">GITHUB_CLIENT_ID</span>
+              {oauthStatus?.hasClientId ? (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-600 font-semibold">
+                  已读取
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-600 font-semibold">
+                  未配置
+                </span>
+              )}
             </div>
-            <div>
-              2. <strong>必须操作</strong>：进入 Cloudflare Pages 控制台 → 点击 <strong>Deployments (部署)</strong> 选项卡 → 找到最新一条记录右侧的 <code>...</code> 菜单 → 点击 <strong>【Redeploy (重新部署)】</strong>，新的环境变量才会注入到运行实例中！
+            <div className="p-2 rounded bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 font-mono text-zinc-800 dark:text-zinc-200 text-[11px] truncate">
+              {oauthStatus?.clientId ? `${oauthStatus.clientId.substring(0, 6)}...` : '未读取到'}
             </div>
-            <div>
-              3. <strong>变量名称核对</strong>：请确认变量名为 <code>GITHUB_CLIENT_ID</code> 与 <code>GITHUB_CLIENT_SECRET</code>（大写），且在 <strong>Production</strong> 环境中已勾选/添加。
+            <p className="text-[10px] text-zinc-400 leading-tight">
+              Cloudflare 生产环境变量，用于发起 GitHub OAuth 2.0 用户授权
+            </p>
+          </div>
+
+          {/* GITHUB_CLIENT_SECRET */}
+          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-200">GITHUB_CLIENT_SECRET</span>
+              {oauthStatus?.hasClientSecret ? (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-600 font-semibold">
+                  已保护
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-600 font-semibold">
+                  未配置
+                </span>
+              )}
             </div>
-            <div>
-              4. <strong>即时免等待通道</strong>：若您刚配置完不想等待 Cloudflare 重新部署构建，也可以直接在下方表单填入并保存，前端将秒级就绪！
+            <div className="p-2 rounded bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 font-mono text-zinc-800 dark:text-zinc-200 text-[11px]">
+              {oauthStatus?.hasClientSecret ? '••••••••••••••••' : '未读取到'}
             </div>
+            <p className="text-[10px] text-zinc-400 leading-tight">
+              Cloudflare 服务端加密存储，用于换取 Access Token，前端不落地
+            </p>
+          </div>
+
+          {/* GITHUB_TOKEN */}
+          <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-200">GITHUB_TOKEN</span>
+              {oauthStatus?.hasToken ? (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-600 font-semibold">
+                  已就绪
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-zinc-200 dark:bg-zinc-800 text-zinc-500 font-semibold">
+                  按需读取
+                </span>
+              )}
+            </div>
+            <div className="p-2 rounded bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 font-mono text-zinc-800 dark:text-zinc-200 text-[11px]">
+              {oauthStatus?.hasToken ? '••••••••••••••••' : 'Cloudflare 注入'}
+            </div>
+            <p className="text-[10px] text-zinc-400 leading-tight">
+              Cloudflare 环境变量，用于 GitHub API 仓库同步与高频接口免限流
+            </p>
           </div>
         </div>
 
-        {/* Callback URLs Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-          <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 space-y-1.5">
-            <span className="text-zinc-500 text-[11px] block">Cloudflare 生产环境授权回调 (Pages):</span>
-            <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px] break-all">
-              <code className="text-zinc-700 dark:text-zinc-300">{cloudflarePagesCallbackUrl}</code>
-              <button
-                onClick={() => copyToClipboard(cloudflarePagesCallbackUrl, 'cf-cb')}
-                className="p-1 hover:text-zinc-900 dark:hover:text-zinc-100 shrink-0"
-                title="复制"
-              >
-                {copiedKey === 'cf-cb' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
+        {/* Cloudflare Redeploy Help Note */}
+        {!oauthStatus?.configured && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px] flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-semibold">Cloudflare 环境变量生效提示：</span>
+              <p>
+                在 Cloudflare Pages 设置中保存环境变量后，请务必前往 <strong>Deployments (部署)</strong> 选项卡，在最新部署右侧点击 <strong>Redeploy (重新部署)</strong>，以将环境变量注入当前运行实例。
+              </p>
             </div>
           </div>
-
-          <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/40 space-y-1.5">
-            <span className="text-zinc-500 text-[11px] block">本地开发环境授权回调 (Local Dev):</span>
-            <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px] break-all">
-              <code className="text-zinc-700 dark:text-zinc-300">{localDevCallbackUrl}</code>
-              <button
-                onClick={() => copyToClipboard(localDevCallbackUrl, 'dev-cb')}
-                className="p-1 hover:text-zinc-900 dark:hover:text-zinc-100 shrink-0"
-                title="复制"
-              >
-                {copiedKey === 'dev-cb' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* In-App Direct Credentials Form */}
-        <form onSubmit={handleSaveCredentials} className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 space-y-3">
-          <div className="font-semibold text-zinc-900 dark:text-zinc-200 text-xs flex items-center justify-between">
-            <span>在线凭据配置表单 (即时注入生效)</span>
-            <div className="flex items-center gap-3">
-              <a
-                href="https://github.com/settings/developers"
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-500 hover:underline flex items-center gap-1 text-[11px]"
-              >
-                <span>创建 OAuth App</span>
-                <ExternalLink className="h-3 w-3" />
-              </a>
-              <a
-                href="https://github.com/settings/tokens/new?scopes=read:user,repo"
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-500 hover:underline flex items-center gap-1 text-[11px]"
-              >
-                <span>创建 PAT Token</span>
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-zinc-500 block mb-1 text-[11px]">
-                GITHUB_CLIENT_ID:
-              </label>
-              <input
-                type="text"
-                value={clientIdInput}
-                onChange={(e) => setClientIdInput(e.target.value)}
-                placeholder="例如: Ov23li..."
-                className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-zinc-500 block mb-1 text-[11px]">
-                GITHUB_CLIENT_SECRET:
-              </label>
-              <input
-                type="password"
-                value={clientSecretInput}
-                onChange={(e) => setClientSecretInput(e.target.value)}
-                placeholder="例如: 8f49b1..."
-                className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-zinc-500 block mb-1 text-[11px]">
-              GITHUB_TOKEN (Personal Access Token · 可选，用于代码同步):
-            </label>
-            <input
-              type="password"
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
-              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-              className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[11px] text-zinc-400">
-              保存后自动同步至浏览器安全存储与中枢授权引擎。
-            </span>
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-bold hover:opacity-90 transition-all text-xs shadow-xs"
-            >
-              <Save className="h-3.5 w-3.5" />
-              <span>保存配置</span>
-            </button>
-          </div>
-
-          {saveSuccess && (
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
-              <CheckCircle2 className="h-4 w-4" />
-              <span>凭据已成功保存！OAuth 与 Token 授权状态已同步激活。</span>
-            </div>
-          )}
-        </form>
+        )}
       </div>
 
       {/* SECTION 2: Production Clean Slate & Demo Data Cleaner */}
@@ -473,7 +378,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
               <span className="text-emerald-600 font-bold">5 次 / 分钟</span>
             </div>
             <p className="text-[11px] text-zinc-400 leading-relaxed">
-              针对 <code>/api/auth/url</code>、<code>/auth/callback</code> 与 Token 验证端点。超频自动触发 30-60 秒安全倒计时保护。
+              针对 <code>/api/auth/url</code> 与 <code>/auth/callback</code> 鉴权端点。超频自动触发 30-60 秒安全倒计时保护。
             </p>
           </div>
 

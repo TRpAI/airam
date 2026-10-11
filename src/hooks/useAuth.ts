@@ -22,18 +22,8 @@ export function useAuth() {
   const [loading, setLoading] = useState(false);
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
 
-  // Check OAuth and Admin System status on load
+  // Check OAuth and Admin System status on load (Strictly from Cloudflare / server environment)
   const refreshOAuthStatus = useCallback(async () => {
-    // Read local/build environment variables as client-side fallback
-    const localClientId = 
-      localStorage.getItem('airam_client_id') || 
-      (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
-      '';
-    const localClientSecret = 
-      localStorage.getItem('airam_client_secret') || 
-      (import.meta as any).env?.VITE_GITHUB_CLIENT_SECRET || 
-      '';
-
     try {
       const origin = encodeURIComponent(window.location.origin);
       const res = await fetch(`/api/auth/status?origin=${origin}`);
@@ -41,47 +31,17 @@ export function useAuth() {
         const text = await res.text();
         try {
           const data = JSON.parse(text);
-          // If server reported not configured, but client has credentials, enhance status
-          if (!data.configured && localClientId) {
-            data.configured = true;
-            data.hasClientId = true;
-            data.hasClientSecret = Boolean(localClientSecret || data.hasClientSecret);
-            data.clientId = `${localClientId.substring(0, 6)}...`;
-          }
           setOauthStatus(data);
           return data as OAuthStatus;
         } catch {
-          // Response was HTML (e.g. SPA fallback on Pages before functions build)
-          console.warn('Backend API returned non-JSON, using client-side fallback');
+          console.warn('Backend API returned non-JSON');
         }
       }
     } catch (err) {
       console.warn('获取 OAuth 配置状态失败:', err);
     }
-
-    // Client-side fallback status when running purely on client or static Pages
-    if (localClientId) {
-      const fallbackStatus: OAuthStatus = {
-        configured: true,
-        hasClientId: true,
-        hasClientSecret: Boolean(localClientSecret),
-        clientId: `${localClientId.substring(0, 6)}...`,
-        redirectUri: `${window.location.origin}/auth/callback`,
-        hasAdmin: Boolean(auth.user?.isAdmin),
-        adminUsername: auth.user?.login || null,
-        adminUser: auth.user ? {
-          login: auth.user.login,
-          name: auth.user.name,
-          avatar_url: auth.user.avatar_url,
-          claimedAt: auth.user.claimedAt || new Date().toISOString()
-        } : null,
-      };
-      setOauthStatus(fallbackStatus);
-      return fallbackStatus;
-    }
-
     return null;
-  }, [auth.user]);
+  }, []);
 
   useEffect(() => {
     refreshOAuthStatus();
@@ -129,15 +89,13 @@ export function useAuth() {
   }, [refreshOAuthStatus]);
 
   // Helper to build direct GitHub OAuth authorize URL synchronously
-  const getOAuthAuthorizeUrl = useCallback((customClientId?: string): string => {
+  const getOAuthAuthorizeUrl = useCallback((): string => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const redirectUri = `${origin.replace(/\/$/, '')}/auth/callback`;
     const clientId = 
-      customClientId ||
       oauthStatus?.clientId || 
-      localStorage.getItem('airam_client_id') || 
       (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 
-      'Ov23livHPHWaIViY0yP0';
+      '';
 
     if (!clientId) return '';
 
@@ -162,7 +120,7 @@ export function useAuth() {
         setLoading(false);
         return {
           success: false,
-          error: '系统尚未配置 GITHUB_CLIENT_ID。请在 Cloudflare 环境变量中添加，或在管理员设置中直接配置凭据。',
+          error: '系统尚未配置 Cloudflare 环境变量 GITHUB_CLIENT_ID。请在 Cloudflare Pages 设置中添加并重新部署。',
         };
       }
 
@@ -207,71 +165,11 @@ export function useAuth() {
     }
   };
 
-  // 2. Secondary: Login via GitHub Personal Access Token (PAT)
-  const loginWithToken = async (token: string): Promise<void> => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/verify-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token.trim() }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const newAuth: AuthState = {
-          isAuthenticated: true,
-          user: data.user,
-          token: token.trim(),
-        };
-
-        setAuth(newAuth);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
-        refreshOAuthStatus();
-        return;
-      }
-
-      // Client direct verification fallback if backend endpoint was unavailable
-      const ghRes = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `token ${token.trim()}`,
-          Accept: 'application/vnd.github.v3+json',
-        },
-      });
-
-      if (!ghRes.ok) {
-        throw new Error('GitHub Token 验证失败，请确认权限包含 read:user');
-      }
-
-      const ghUser = await ghRes.json();
-      const newAuth: AuthState = {
-        isAuthenticated: true,
-        user: {
-          id: ghUser.id,
-          login: ghUser.login,
-          name: ghUser.name || ghUser.login,
-          avatar_url: ghUser.avatar_url,
-          html_url: ghUser.html_url,
-          role: 'admin',
-          isAdmin: true,
-          isFirstAdminClaim: true,
-        },
-        token: token.trim(),
-      };
-
-      setAuth(newAuth);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
-      refreshOAuthStatus();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 3. Demo Login (Only enabled in development mode, disabled in production)
+  // 2. Demo Login (Only enabled in development mode, disabled in production)
   const loginWithDemo = async (username = 'osahermes') => {
     // If in production mode, block demo login
     if (import.meta.env.PROD) {
-      throw new Error('生产环境已全面移除演示模式，请使用 GitHub OAuth 或 Token 登录。');
+      throw new Error('生产环境已全面移除演示模式，请使用 GitHub OAuth 登录。');
     }
     setLoading(true);
     try {
@@ -317,7 +215,7 @@ export function useAuth() {
     }
   };
 
-  // 4. Reset Admin Authority (Seat release)
+  // 3. Reset Admin Authority (Seat release)
   const resetAdminSeat = async () => {
     try {
       await fetch('/api/auth/reset-admin', {
@@ -330,14 +228,6 @@ export function useAuth() {
     }
     localStorage.removeItem('airam_admin_user');
     logout();
-    refreshOAuthStatus();
-  };
-
-  // Save credentials configured in Admin Settings
-  const saveCustomCredentials = (clientId: string, clientSecret: string, token?: string) => {
-    if (clientId) localStorage.setItem('airam_client_id', clientId.trim());
-    if (clientSecret) localStorage.setItem('airam_client_secret', clientSecret.trim());
-    if (token) localStorage.setItem('airam_github_token', token.trim());
     refreshOAuthStatus();
   };
 
@@ -357,11 +247,9 @@ export function useAuth() {
     loading,
     oauthStatus,
     loginWithOAuth,
-    loginWithToken,
     loginWithDemo,
     getOAuthAuthorizeUrl,
     resetAdminSeat,
-    saveCustomCredentials,
     refreshOAuthStatus,
     logout,
   };

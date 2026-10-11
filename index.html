@@ -24,12 +24,30 @@
   <body class="bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 antialiased selection:bg-zinc-900 selection:text-white dark:selection:bg-zinc-100 dark:selection:text-zinc-950 min-h-screen">
     <script>
       window.__deferredPwaPrompt = null;
+      window.__isPwaInstalled = window.matchMedia('(display-mode: standalone)').matches || false;
+
       window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
         window.__deferredPwaPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-prompt-available', { detail: e }));
+
+        // If navigated with ?action=install (e.g. from iframe popout), immediately trigger native prompt
+        try {
+          var urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.get('action') === 'install') {
+            setTimeout(function() {
+              if (window.__deferredPwaPrompt && typeof window.__deferredPwaPrompt.prompt === 'function') {
+                window.__deferredPwaPrompt.prompt();
+              }
+            }, 300);
+          }
+        } catch (err) {}
       });
+
       window.addEventListener('appinstalled', function() {
         window.__deferredPwaPrompt = null;
+        window.__isPwaInstalled = true;
+        window.dispatchEvent(new CustomEvent('pwa-installed'));
       });
     </script>
     <div id="root"></div>

@@ -5,11 +5,24 @@ export async function fetchPublicGitHubRepo(
   repo: string,
   token?: string
 ): Promise<{ repo: GitHubRepository; readme: string }> {
+  let activeToken = token;
+  if (!activeToken) {
+    try {
+      const saved = localStorage.getItem('devhub_auth_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.token) activeToken = parsed.token;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github.v3+json',
   };
-  if (token) {
-    headers.Authorization = `token ${token}`;
+  if (activeToken) {
+    headers.Authorization = `token ${activeToken}`;
   }
 
   // 1. 获取仓库元数据
@@ -18,7 +31,7 @@ export async function fetchPublicGitHubRepo(
     if (repoRes.status === 404) {
       throw new Error(`仓库 ${owner}/${repo} 未找到，请检查大小写或是否为私有仓库。`);
     } else if (repoRes.status === 403) {
-      throw new Error('触发 GitHub 匿名请求频率限制（60次/小时）。请稍后重试或填写 Personal Access Token。');
+      throw new Error('触发 GitHub API 请求频率限制。请在 Cloudflare 环境变量中配置 GITHUB_TOKEN 解除限流。');
     }
     throw new Error(`GitHub API 请求失败 (状态码: ${repoRes.status})`);
   }

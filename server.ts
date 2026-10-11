@@ -11,6 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Data store directory
+// Data store directory
 const DATA_DIR = path.resolve(__dirname, '.data');
 const ADMIN_STORE_FILE = path.resolve(DATA_DIR, 'admin_system.json');
 const SUBMISSIONS_STORE_FILE = path.resolve(DATA_DIR, 'submissions.json');
@@ -287,7 +288,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  // 1. Get OAuth & Admin System status
+  // 1. Get OAuth & Admin System status (Reads directly from environment variables)
   app.get('/api/auth/status', (req, res) => {
     const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID || process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID || '';
     const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET || '';
@@ -298,7 +299,8 @@ async function startServer() {
       configured: Boolean(clientId && clientSecret),
       hasClientId: Boolean(clientId),
       hasClientSecret: Boolean(clientSecret),
-      clientId: clientId ? `${clientId.substring(0, 6)}...` : null,
+      hasToken: Boolean(process.env.GITHUB_TOKEN),
+      clientId: clientId || null,
       redirectUri,
       hasAdmin: Boolean(adminSystemCache.admin),
       adminUsername: adminSystemCache.admin ? adminSystemCache.admin.login : null,
@@ -324,7 +326,7 @@ async function startServer() {
     });
   });
 
-  // 2. Generate GitHub OAuth authorization URL (with login rate limiting: max 10/min)
+  // 2. Generate GitHub OAuth authorization URL (Strictly reads from environment variables)
   app.get(['/api/auth/url', '/api/auth/github/url'], (req, res) => {
     const clientIp = getClientIdentifier(req);
     const rateCheck = checkRateLimit(loginRateLimitStore, clientIp, 10, 60000, 1000);
@@ -336,27 +338,33 @@ async function startServer() {
       });
     }
 
-    const clientId = process.env.GITHUB_CLIENT_ID || process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID || '';
+    const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID || process.env.OAUTH_CLIENT_ID || process.env.CLIENT_ID || '';
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET || '';
     const origin = (req.query.origin as string) || process.env.APP_URL || '';
     const redirectUri = origin ? `${origin.replace(/\/$/, '')}/auth/callback` : `${req.protocol}://${req.get('host')}/auth/callback`;
 
     const state = Math.random().toString(36).substring(2, 15);
 
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: 'read:user user:email repo',
-      state,
-    });
-
-    const authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
+    let authUrl = '';
+    if (clientId) {
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: 'read:user user:email repo',
+        state,
+      });
+      authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
+    }
 
     res.json({
       url: authUrl,
-      configured: Boolean(clientId),
+      configured: Boolean(clientId && clientSecret),
+      hasClientId: Boolean(clientId),
+      hasClientSecret: Boolean(clientSecret),
+      hasToken: Boolean(process.env.GITHUB_TOKEN),
       redirectUri,
-      clientId,
+      clientId: clientId || null,
       hasAdmin: Boolean(adminSystemCache.admin),
       adminUsername: adminSystemCache.admin ? adminSystemCache.admin.login : null,
     });
@@ -645,8 +653,14 @@ async function startServer() {
       });
     }
 
-    if (!token && !username) {
-      return res.status(400).json({ error: '请提供 Token 或用户名' });
+    if (token) {
+      return res.status(403).json({ 
+        error: '系统已彻底关闭 Personal Access Token 登入方式，请使用 GitHub OAuth 登录。所需密钥已从 Cloudflare 环境变量获取。' 
+      });
+    }
+
+    if (!username) {
+      return res.status(400).json({ error: '请使用 GitHub OAuth 登录' });
     }
 
     try {
@@ -654,11 +668,11 @@ async function startServer() {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'AIram-DevHub',
       };
-      if (token) {
-        headers.Authorization = `token ${token}`;
+      if (process.env.GITHUB_TOKEN) {
+        headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
       }
 
-      const endpoint = token ? 'https://api.github.com/user' : `https://api.github.com/users/${username}`;
+      const endpoint = `https://api.github.com/users/${username}`;
       const response = await fetch(endpoint, { headers });
 
       if (!response.ok) {
@@ -950,6 +964,24 @@ async function startServer() {
       success: true,
       message: initialLen !== submissionsCache.length ? '已成功删除该记录' : '记录不存在',
     });
+  });
+
+  // 6.9 Service Worker endpoint for PWA installability
+  app.get('/sw.js', (req, res) => {
+    res.setHeader('Content-Type', 'text/javascript');
+    res.send(`// PWA Service Worker
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('fetch', (event) => {
+  // Let browser handle fetch
+});
+`);
   });
 
   // 7. Frontend Integration (Vite in dev, static files in prod)

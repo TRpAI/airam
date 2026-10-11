@@ -37,7 +37,10 @@ export interface OAuthStatus {
   configured: boolean;
   hasClientId: boolean;
   hasClientSecret: boolean;
+  hasToken?: boolean;
   clientId: string | null;
+  isDefaultPlaceholder?: boolean;
+  rawClientId?: string;
   redirectUri: string;
   hasAdmin?: boolean;
   adminUsername?: string | null;
