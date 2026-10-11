@@ -20,6 +20,8 @@ export function useAuth() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isExchangingCode, setIsExchangingCode] = useState(false);
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
 
   // Check OAuth and Admin System status on load (Strictly from Cloudflare / server environment)
@@ -45,6 +47,93 @@ export function useAuth() {
 
   useEffect(() => {
     refreshOAuthStatus();
+  }, [refreshOAuthStatus]);
+
+  // Auto-detect and exchange OAuth code when page loads with ?code= parameter (redirect flow)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    const searchParams = url.searchParams;
+    const code = searchParams.get('code');
+    const err = searchParams.get('error');
+    const errDesc = searchParams.get('error_description');
+
+    if (err) {
+      setAuthError(errDesc || err || 'GitHub 授权未通过');
+      const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
+      window.history.replaceState({}, '', `${cleanPath}${window.location.hash}`);
+      return;
+    }
+
+    if (!code) return;
+
+    let active = true;
+    setIsExchangingCode(true);
+    setLoading(true);
+
+    const performExchange = async () => {
+      try {
+        const origin = window.location.origin;
+        // 1. Try dedicated Cloudflare Pages / server exchange endpoint
+        let res = await fetch(`/api/auth/exchange?code=${encodeURIComponent(code)}&origin=${encodeURIComponent(origin)}`, {
+          headers: { Accept: 'application/json' }
+        });
+
+        // 2. Fallback to /auth/callback with format=json
+        if (!res.ok && res.status === 404) {
+          res = await fetch(`/auth/callback?code=${encodeURIComponent(code)}&format=json&origin=${encodeURIComponent(origin)}`, {
+            headers: { Accept: 'application/json' }
+          });
+        }
+
+        const data = await res.json();
+        if (!active) return;
+
+        if (!res.ok || data.error || !data.user) {
+          throw new Error(data.error || '换取 GitHub 授权访问令牌失败');
+        }
+
+        const newAuth: AuthState = {
+          isAuthenticated: true,
+          user: data.user,
+          token: data.token,
+        };
+
+        setAuth(newAuth);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
+        } catch {
+          // ignore quota
+        }
+
+        // Clean up URL parameters (remove ?code=...&state=...) and redirect to admin dashboard
+        const targetHash = window.location.hash && window.location.hash !== '#/' 
+          ? window.location.hash 
+          : '#/admin/dashboard';
+        const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
+        window.history.replaceState({}, '', `${cleanPath}${targetHash}`);
+
+        refreshOAuthStatus();
+      } catch (e: any) {
+        if (!active) return;
+        console.error('GitHub code exchange failed:', e);
+        setAuthError(e.message || 'GitHub 授权凭据交换失败');
+        const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
+        window.history.replaceState({}, '', `${cleanPath}${window.location.hash}`);
+      } finally {
+        if (active) {
+          setIsExchangingCode(false);
+          setLoading(false);
+        }
+      }
+    };
+
+    performExchange();
+
+    return () => {
+      active = false;
+    };
   }, [refreshOAuthStatus]);
 
   // Set up OAuth popup postMessage listener (Only Cloudflare Pages and local dev)
@@ -80,6 +169,7 @@ export function useAuth() {
         }
       } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
         console.error('GitHub OAuth error:', event.data.error);
+        setAuthError(event.data.error || '授权失败');
         setLoading(false);
       }
     };
@@ -245,6 +335,8 @@ export function useAuth() {
     user: auth.user,
     token: auth.token,
     loading,
+    authError,
+    isExchangingCode,
     oauthStatus,
     loginWithOAuth,
     loginWithDemo,

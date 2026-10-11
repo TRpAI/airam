@@ -381,11 +381,14 @@ async function startServer() {
     return res.status(400).json({ error: '请确认重置请求' });
   });
 
-  // 4. GitHub OAuth Callback handler (with login rate limiting: max 5/min)
-  app.get(['/auth/callback', '/auth/callback/'], async (req, res) => {
+  // 4. GitHub OAuth Callback & Exchange handler (with login rate limiting: max 5/min)
+  app.all(['/auth/callback', '/auth/callback/', '/api/auth/exchange'], async (req, res) => {
     const clientIp = getClientIdentifier(req);
     const rateCheck = checkRateLimit(loginRateLimitStore, clientIp, 5, 60000, 1500);
     if (!rateCheck.allowed) {
+      if (req.headers.accept?.includes('application/json') || req.path.includes('/api/auth/exchange')) {
+        return res.status(429).json({ error: `登入频率受限，请等待 ${rateCheck.retryAfter} 秒后再试` });
+      }
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -406,7 +409,9 @@ async function startServer() {
       `);
     }
 
-    const { code, error, error_description } = req.query;
+    const code = (req.query.code || req.body?.code) as string;
+    const error = req.query.error || req.body?.error;
+    const error_description = req.query.error_description || req.body?.error_description;
 
     if (error) {
       const errorMsg = (error_description as string) || (error as string) || 'GitHub 授权取消';
@@ -522,6 +527,15 @@ async function startServer() {
       const badgeColor = isAdmin ? '#10b981' : '#38bdf8';
       const roleBadgeText = isAdmin ? '系统管理员 (Admin)' : '访客体验者 (Visitor)';
 
+      if (req.xhr || req.headers.accept?.includes('application/json') || req.query.format === 'json' || req.path.includes('/api/auth/exchange')) {
+        return res.json({
+          success: true,
+          user: userData,
+          token: accessToken,
+          isFirstAdminClaim,
+        });
+      }
+
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -610,7 +624,7 @@ async function startServer() {
                     token: accessToken
                   }));
                 } catch (e) {}
-                window.location.href = '/';
+                window.location.href = '/#/admin/dashboard';
               }
             </script>
           </body>

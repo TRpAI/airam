@@ -131,6 +131,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       isFirstAdminClaim: isFirstAdmin,
     };
 
+    if (context.request.headers.get('Accept')?.includes('application/json') || url.searchParams.get('format') === 'json') {
+      return new Response(JSON.stringify({
+        success: true,
+        user: userPayload,
+        token: accessToken,
+        isFirstAdminClaim: isFirstAdmin,
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache, no-store'
+        }
+      });
+    }
+
     return new Response(`
       <!DOCTYPE html>
       <html>
@@ -158,7 +173,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
               user: payload,
               token: token
             }));
-            window.location.href = '/';
+            window.location.href = '/#/admin/dashboard';
           }
         </script>
       </body>
