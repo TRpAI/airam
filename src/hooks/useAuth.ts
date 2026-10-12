@@ -49,6 +49,183 @@ export function useAuth() {
     refreshOAuthStatus();
   }, [refreshOAuthStatus]);
 
+  const [callbackStep, setCallbackStep] = useState<'idle' | 'verifying' | 'success' | 'timeout' | 'error'>('idle');
+  const [callbackProgress, setCallbackProgress] = useState(0);
+  const [callbackTimedOut, setCallbackTimedOut] = useState(false);
+  const [callbackStatusMsg, setCallbackStatusMsg] = useState('正在初始化 GitHub 身份验证...');
+
+  // Helper to cancel callback and redirect cleanly to home/public
+  const cancelCallbackAndRedirect = useCallback(() => {
+    setIsExchangingCode(false);
+    setCallbackStep('idle');
+    setAuthError(null);
+    setCallbackTimedOut(false);
+    if (typeof window !== 'undefined') {
+      const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
+      window.history.replaceState({}, '', `${cleanPath}#/`);
+      if (window.location.pathname.includes('/auth/callback')) {
+        window.location.href = '/#/';
+      }
+    }
+  }, []);
+
+  // Helper to re-trigger the OAuth code exchange or new OAuth authorization
+  const retryCallbackExchange = useCallback(() => {
+    setAuthError(null);
+    setCallbackTimedOut(false);
+    setCallbackStep('verifying');
+    setCallbackProgress(20);
+    setCallbackStatusMsg('正在重新发起授权验证...');
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get('code');
+    if (!code) {
+      // If code was cleared, initiate fresh OAuth login
+      loginWithOAuth(false);
+      return;
+    }
+    // Re-trigger exchange with existing code
+    triggerExchange(code);
+  }, []);
+
+  // Dedicated code exchange runner with timeout protection
+  const triggerExchange = useCallback(async (code: string) => {
+    setIsExchangingCode(true);
+    setLoading(true);
+    setCallbackStep('verifying');
+    setCallbackProgress(25);
+    setCallbackTimedOut(false);
+    setAuthError(null);
+    setCallbackStatusMsg('已接收 GitHub 回调授权码，正在与 Cloudflare 边缘服务端通信...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 9000); // 9-second timeout safeguard
+
+    // Progress tick
+    const pTimer1 = setTimeout(() => {
+      setCallbackProgress(60);
+      setCallbackStatusMsg('正在通过 Cloudflare 环境变量向 GitHub 换取 Access Token...');
+    }, 1200);
+
+    const pTimer2 = setTimeout(() => {
+      setCallbackProgress(85);
+      setCallbackStatusMsg('正在校验用户所有者身份并同步管理员席位...');
+    }, 2800);
+
+    try {
+      const origin = window.location.origin;
+      let data: any = null;
+
+      // 1. Try dedicated Cloudflare Pages / server exchange endpoint
+      try {
+        const candidateRes = await fetch(`/api/auth/exchange?code=${encodeURIComponent(code)}&origin=${encodeURIComponent(origin)}`, {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal
+        });
+        const contentType = candidateRes.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const parsed = await candidateRes.json();
+          if (candidateRes.ok && parsed.user) {
+            data = parsed;
+          } else if (parsed.error) {
+            throw new Error(parsed.error);
+          }
+        }
+      } catch (fetchErr: any) {
+        if (fetchErr.name === 'AbortError' || fetchErr.message === 'TIMEOUT') {
+          throw new Error('TIMEOUT');
+        }
+        if (fetchErr.message && !fetchErr.message.includes('JSON')) {
+          console.warn('/api/auth/exchange notice:', fetchErr.message);
+        }
+      }
+
+      // 2. Fallback to /auth/callback with format=json if data not yet acquired
+      if (!data) {
+        try {
+          const fallbackRes = await fetch(`/auth/callback?code=${encodeURIComponent(code)}&format=json&origin=${encodeURIComponent(origin)}`, {
+            headers: { Accept: 'application/json' },
+            signal: controller.signal
+          });
+          const contentType = fallbackRes.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const parsed = await fallbackRes.json();
+            if (fallbackRes.ok && parsed.user) {
+              data = parsed;
+            } else if (parsed.error) {
+              throw new Error(parsed.error);
+            }
+          }
+        } catch (fbErr: any) {
+          if (fbErr.name === 'AbortError' || fbErr.message === 'TIMEOUT') {
+            throw new Error('TIMEOUT');
+          }
+        }
+      }
+
+      clearTimeout(timeoutId);
+      clearTimeout(pTimer1);
+      clearTimeout(pTimer2);
+
+      if (!data || !data.user) {
+        throw new Error(data?.error || '未能通过 Cloudflare 边缘服务端换取有效访问令牌，请确认环境变量配置并执行 Redeploy。');
+      }
+
+      setCallbackProgress(100);
+      setCallbackStep('success');
+      setCallbackStatusMsg('👑 授权成功！正在同步认证会话并进入中枢控制台...');
+
+      const newAuth: AuthState = {
+        isAuthenticated: true,
+        user: data.user,
+        token: data.token,
+      };
+
+      // Brief delay so user sees the 100% success checkmark
+      await new Promise((r) => setTimeout(r, 650));
+
+      setAuth(newAuth);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
+      } catch {
+        // ignore quota
+      }
+
+      // Clean up URL parameters (remove ?code=...&state=...) and redirect to admin dashboard
+      const targetHash = window.location.hash && window.location.hash !== '#/' 
+        ? window.location.hash 
+        : '#/admin/dashboard';
+      const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
+      window.history.replaceState({}, '', `${cleanPath}${targetHash}`);
+
+      refreshOAuthStatus();
+      setCallbackStep('idle');
+      setIsExchangingCode(false);
+      setLoading(false);
+
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      clearTimeout(pTimer1);
+      clearTimeout(pTimer2);
+
+      console.error('GitHub code exchange failed:', e);
+      if (e.message === 'TIMEOUT' || e.name === 'AbortError') {
+        setCallbackStep('timeout');
+        setCallbackTimedOut(true);
+        setCallbackStatusMsg('GitHub 授权换取令牌响应超时 (9秒)');
+        setAuthError('GitHub 授权换取令牌响应超时。这通常是由于 Cloudflare Pages 环境变量未执行 Redeploy (重新部署) 生效，或授权 Code 已被消费。');
+      } else {
+        setCallbackStep('error');
+        setCallbackStatusMsg('授权验证未完成');
+        setAuthError(e.message || 'GitHub 授权凭据交换失败');
+      }
+      setIsExchangingCode(false);
+      setLoading(false);
+    }
+  }, [refreshOAuthStatus]);
+
   // Auto-detect and exchange OAuth code when page loads with ?code= parameter (redirect flow)
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -61,6 +238,7 @@ export function useAuth() {
 
     if (err) {
       setAuthError(errDesc || err || 'GitHub 授权未通过');
+      setCallbackStep('error');
       const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
       window.history.replaceState({}, '', `${cleanPath}${window.location.hash}`);
       return;
@@ -68,73 +246,8 @@ export function useAuth() {
 
     if (!code) return;
 
-    let active = true;
-    setIsExchangingCode(true);
-    setLoading(true);
-
-    const performExchange = async () => {
-      try {
-        const origin = window.location.origin;
-        // 1. Try dedicated Cloudflare Pages / server exchange endpoint
-        let res = await fetch(`/api/auth/exchange?code=${encodeURIComponent(code)}&origin=${encodeURIComponent(origin)}`, {
-          headers: { Accept: 'application/json' }
-        });
-
-        // 2. Fallback to /auth/callback with format=json
-        if (!res.ok && res.status === 404) {
-          res = await fetch(`/auth/callback?code=${encodeURIComponent(code)}&format=json&origin=${encodeURIComponent(origin)}`, {
-            headers: { Accept: 'application/json' }
-          });
-        }
-
-        const data = await res.json();
-        if (!active) return;
-
-        if (!res.ok || data.error || !data.user) {
-          throw new Error(data.error || '换取 GitHub 授权访问令牌失败');
-        }
-
-        const newAuth: AuthState = {
-          isAuthenticated: true,
-          user: data.user,
-          token: data.token,
-        };
-
-        setAuth(newAuth);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
-        } catch {
-          // ignore quota
-        }
-
-        // Clean up URL parameters (remove ?code=...&state=...) and redirect to admin dashboard
-        const targetHash = window.location.hash && window.location.hash !== '#/' 
-          ? window.location.hash 
-          : '#/admin/dashboard';
-        const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
-        window.history.replaceState({}, '', `${cleanPath}${targetHash}`);
-
-        refreshOAuthStatus();
-      } catch (e: any) {
-        if (!active) return;
-        console.error('GitHub code exchange failed:', e);
-        setAuthError(e.message || 'GitHub 授权凭据交换失败');
-        const cleanPath = window.location.pathname.includes('/auth/callback') ? '/' : window.location.pathname;
-        window.history.replaceState({}, '', `${cleanPath}${window.location.hash}`);
-      } finally {
-        if (active) {
-          setIsExchangingCode(false);
-          setLoading(false);
-        }
-      }
-    };
-
-    performExchange();
-
-    return () => {
-      active = false;
-    };
-  }, [refreshOAuthStatus]);
+    triggerExchange(code);
+  }, [triggerExchange]);
 
   // Set up OAuth popup postMessage listener (Only Cloudflare Pages and local dev)
   useEffect(() => {
@@ -337,6 +450,12 @@ export function useAuth() {
     loading,
     authError,
     isExchangingCode,
+    callbackStep,
+    callbackProgress,
+    callbackTimedOut,
+    callbackStatusMsg,
+    retryCallbackExchange,
+    cancelCallbackAndRedirect,
     oauthStatus,
     loginWithOAuth,
     loginWithDemo,

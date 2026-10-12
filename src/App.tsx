@@ -78,6 +78,14 @@ export default function App() {
     loginWithDemo, 
     logout, 
     loading: authLoading,
+    authError,
+    isExchangingCode,
+    callbackStep,
+    callbackProgress,
+    callbackTimedOut,
+    callbackStatusMsg,
+    retryCallbackExchange,
+    cancelCallbackAndRedirect,
     oauthStatus,
     resetAdminSeat,
     refreshOAuthStatus
@@ -96,6 +104,11 @@ export default function App() {
     setSelectedDocId,
     setSelectedKnowledgeId: setRouterKnowledgeId
   } = useAppRouter();
+
+  // 检测是否处于 GitHub OAuth 回调处理流程中 (拦截 URL ?code= 或 /auth/callback)
+  const isUrlCallback = typeof window !== 'undefined' && 
+    (new URLSearchParams(window.location.search).has('code') || window.location.pathname.includes('/auth/callback'));
+  const isHandlingCallback = isExchangingCode || (callbackStep !== 'idle') || isUrlCallback;
 
   // 生产环境规范：严格移除所有演示数据 (import.meta.env.PROD 状态或用户手动清理)
   const isPurgedMode = import.meta.env.PROD || localStorage.getItem('airam_demo_purged') === 'true';
@@ -337,29 +350,56 @@ export default function App() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 pb-20 lg:pb-8">
         
         {/* ========================================================================= */}
-        {/* 1. 前台展示空间 (Public Showcase Portal)                                    */}
+        {/* 0. 优先拦截：GitHub OAuth 授权回调与凭据交换加载视图                           */}
         {/* ========================================================================= */}
-        {viewMode === 'public' && (
-          <PublicShowcase
-            knowledge={knowledge}
-            projects={projects}
-            repos={repos}
-            approvedSubmissions={submissions.filter((s) => s.status === 'approved')}
-            onGoToAdmin={() => setViewMode('admin')}
-            onOpenSearch={() => setIsSearchOpen(true)}
-            onOpenSubmitRepo={() => setIsSubmitModalOpen(true)}
-            user={user}
-            activeSection={publicSection}
-            onSectionChange={setPublicSection}
-            selectedDocId={selectedDocId}
-            onSelectDoc={setSelectedDocId}
+        {isHandlingCallback && !isAuthenticated ? (
+          <AdminLogin
+            onLoginOAuth={loginWithOAuth}
+            onLoginDemo={loginWithDemo}
+            loading={authLoading}
+            oauthStatus={oauthStatus}
+            onReturnToPublic={() => {
+              cancelCallbackAndRedirect();
+              setViewMode('public');
+            }}
+            authError={authError}
+            isExchangingCode={isExchangingCode}
+            callbackStep={callbackStep}
+            callbackProgress={callbackProgress}
+            callbackTimedOut={callbackTimedOut}
+            callbackStatusMsg={callbackStatusMsg}
+            onRetryCallback={retryCallbackExchange}
+            onCancelCallback={() => {
+              cancelCallbackAndRedirect();
+              setViewMode('public');
+            }}
           />
-        )}
+        ) : (
+          <>
+            {/* ========================================================================= */}
+            {/* 1. 前台展示空间 (Public Showcase Portal)                                    */}
+            {/* ========================================================================= */}
+            {viewMode === 'public' && (
+              <PublicShowcase
+                knowledge={knowledge}
+                projects={projects}
+                repos={repos}
+                approvedSubmissions={submissions.filter((s) => s.status === 'approved')}
+                onGoToAdmin={() => setViewMode('admin')}
+                onOpenSearch={() => setIsSearchOpen(true)}
+                onOpenSubmitRepo={() => setIsSubmitModalOpen(true)}
+                user={user}
+                activeSection={publicSection}
+                onSectionChange={setPublicSection}
+                selectedDocId={selectedDocId}
+                onSelectDoc={setSelectedDocId}
+              />
+            )}
 
-        {/* ========================================================================= */}
-        {/* 2. 后台管理中枢 (Admin Console)                                            */}
-        {/* ========================================================================= */}
-        {viewMode === 'admin' && (
+            {/* ========================================================================= */}
+            {/* 2. 后台管理中枢 (Admin Console)                                            */}
+            {/* ========================================================================= */}
+            {viewMode === 'admin' && (
           <>
             {/* If not authenticated with GitHub account, show Login Gate */}
             {!isAuthenticated ? (
@@ -369,6 +409,14 @@ export default function App() {
                 loading={authLoading}
                 oauthStatus={oauthStatus}
                 onReturnToPublic={() => setViewMode('public')}
+                authError={authError}
+                isExchangingCode={isExchangingCode}
+                callbackStep={callbackStep}
+                callbackProgress={callbackProgress}
+                callbackTimedOut={callbackTimedOut}
+                callbackStatusMsg={callbackStatusMsg}
+                onRetryCallback={retryCallbackExchange}
+                onCancelCallback={cancelCallbackAndRedirect}
               />
             ) : (
               <div className="space-y-6">
@@ -555,6 +603,8 @@ export default function App() {
                 )}
               </div>
             )}
+          </>
+        )}
           </>
         )}
 

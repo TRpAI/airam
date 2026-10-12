@@ -440,10 +440,16 @@ async function startServer() {
     const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || process.env.CLIENT_SECRET;
 
     if (!code) {
+      if (req.headers.accept?.includes('application/json') || req.path.includes('/api/auth/exchange')) {
+        return res.status(400).json({ error: '缺少授权 code 参数' });
+      }
       return res.status(400).send('缺少授权 code 参数');
     }
 
     if (!clientId || !clientSecret) {
+      if (req.headers.accept?.includes('application/json') || req.path.includes('/api/auth/exchange')) {
+        return res.status(500).json({ error: '服务端未配置 GITHUB_CLIENT_SECRET 环境变量' });
+      }
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -454,6 +460,9 @@ async function startServer() {
               <p style="font-size: 13px; color: #a1a1aa; line-height: 1.6;">
                 已收到 GitHub 授权 Code，但服务端需要环境变量 <code>GITHUB_CLIENT_SECRET</code> 才能换取 Access Token。
               </p>
+              <div style="margin-top: 20px;">
+                <a href="/#/" style="display: inline-block; padding: 8px 16px; background: #27272a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 12px;">返回系统主页</a>
+              </div>
               <script>
                 if (window.opener) {
                   window.opener.postMessage({
@@ -461,6 +470,8 @@ async function startServer() {
                     error: '服务器尚未配置 GITHUB_CLIENT_SECRET'
                   }, '*');
                   setTimeout(() => window.close(), 3000);
+                } else {
+                  setTimeout(() => { window.location.href = '/#/'; }, 4000);
                 }
               </script>
             </div>
@@ -639,10 +650,15 @@ async function startServer() {
             <div style="text-align: center; max-width: 400px; padding: 24px; border: 1px solid #27272a; border-radius: 12px; background: #18181b;">
               <h3 style="margin-top: 0;">GitHub 令牌换取失败</h3>
               <p style="font-size: 13px; color: #a1a1aa; line-height: 1.5;">${err.message || '未知错误'}</p>
+              <div style="margin-top: 18px;">
+                <a href="/#/" style="display: inline-block; padding: 8px 16px; background: #27272a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 12px;">返回系统主页</a>
+              </div>
               <script>
                 if (window.opener) {
                   window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: ${JSON.stringify(err.message || '授权验证失败')} }, '*');
                   setTimeout(() => window.close(), 2500);
+                } else {
+                  setTimeout(() => { window.location.href = '/#/'; }, 4000);
                 }
               </script>
             </div>

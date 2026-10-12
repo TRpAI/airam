@@ -52,6 +52,16 @@ export function parseRouteFromLocation(): RouteState | null {
 
   const candidate = hashRaw || (pathRaw && pathRaw !== 'index.html' ? pathRaw : '');
 
+  // 规则 0: OAuth 回调拦截 (识别 auth/callback 或 ?code=，直接定位至管理员后台)
+  if (pathRaw.includes('auth/callback') || searchParams.has('code')) {
+    return {
+      viewMode: 'admin',
+      adminTab: 'dashboard',
+      publicSection: 'all',
+      selectedDocId: null
+    };
+  }
+
   if (candidate) {
     // 规则 A: 管理后台复合路径 admin 或 admin/:tab 或 admin/knowledge/:docId
     if (candidate.startsWith('admin')) {

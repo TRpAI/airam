@@ -22,15 +22,23 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return new Response(`
       <!DOCTYPE html>
       <html>
-      <head><title>GitHub 授权失败</title></head>
-      <body style="font-family: monospace; padding: 30px; text-align: center; background: #09090b; color: #f43f5e;">
-        <h3>授权遇到错误: ${error}</h3>
-        <p>${errorDescription || '用户取消或未通过 GitHub 授权'}</p>
+      <head><meta charset="utf-8"><title>GitHub 授权失败</title></head>
+      <body style="font-family: -apple-system, monospace; padding: 40px; text-align: center; background: #09090b; color: #f43f5e;">
+        <div style="max-width: 420px; margin: 40px auto; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+          <h3 style="color: #f43f5e; margin-top: 0; font-size: 16px;">GitHub 授权未完成</h3>
+          <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">${errorDescription || error || '用户取消或未通过 GitHub 授权'}</p>
+          <div style="margin-top: 20px;">
+            <a href="/#/" style="display: inline-block; padding: 8px 16px; background: #27272a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 12px;">立即返回系统主页</a>
+          </div>
+          <p id="countdown" style="color: #71717a; font-size: 11px; margin-top: 15px;">3秒后自动返回主页...</p>
+        </div>
         <script>
           if (window.opener) {
             window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: '${error}' }, '*');
+            setTimeout(() => window.close(), 2000);
+          } else {
+            setTimeout(() => { window.location.href = '/#/'; }, 3000);
           }
-          setTimeout(() => window.close(), 2500);
         </script>
       </body>
       </html>
@@ -149,13 +157,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return new Response(`
       <!DOCTYPE html>
       <html>
-      <head><title>GitHub 授权成功</title></head>
+      <head><meta charset="utf-8"><title>GitHub 授权成功</title></head>
       <body style="font-family: -apple-system, monospace; padding: 40px; text-align: center; background: #09090b; color: #10b981;">
-        <div style="max-width: 380px; margin: 0 auto; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 24px;">
-          <h2 style="margin: 0 0 10px; color: #fff; font-size: 16px;">
-            ${isAdmin ? '👑 成功以管理员身份登入' : '👋 欢迎访问 - 访客模式'}
+        <div style="max-width: 420px; margin: 40px auto; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+          <div style="font-size: 28px; margin-bottom: 12px;">👑</div>
+          <h2 style="margin: 0 0 10px; color: #fff; font-size: 16px; font-weight: 600;">
+            ${isAdmin ? '已绑定最高管理员身份' : '欢迎访问 - 访客模式'}
           </h2>
-          <p style="color: #a1a1aa; font-size: 13px;">正在同步认证凭据至工作台...</p>
+          <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">正在同步认证凭据并进入管理工作台...</p>
+          <div style="margin-top: 24px;">
+            <a href="/#/admin/dashboard" style="display: inline-block; padding: 8px 18px; background: #10b981; color: #000; font-weight: 600; text-decoration: none; border-radius: 8px; font-size: 12px;">立即进入控制台</a>
+          </div>
         </div>
         <script>
           const payload = ${JSON.stringify(userPayload)};
@@ -173,7 +185,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
               user: payload,
               token: token
             }));
-            window.location.href = '/#/admin/dashboard';
+            setTimeout(() => {
+              window.location.href = '/#/admin/dashboard';
+            }, 500);
           }
         </script>
       </body>
@@ -186,14 +200,29 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return new Response(`
       <!DOCTYPE html>
       <html>
-      <body style="font-family: monospace; padding: 30px; text-align: center; background: #09090b; color: #f43f5e;">
-        <h3>授权处理失败</h3>
-        <p>${err.message || '未知错误'}</p>
+      <head><meta charset="utf-8"><title>GitHub 授权处理失败</title></head>
+      <body style="font-family: -apple-system, monospace; padding: 40px; text-align: center; background: #09090b; color: #f43f5e;">
+        <div style="max-width: 440px; margin: 40px auto; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+          <div style="font-size: 28px; margin-bottom: 12px;">⚠️</div>
+          <h3 style="color: #f43f5e; margin: 0 0 10px; font-size: 16px;">授权凭据交换失败</h3>
+          <p style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
+            ${err.message || '未知错误，未能从 GitHub 换取访问令牌'}
+          </p>
+          <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 12px; margin-bottom: 20px; text-align: left; font-size: 11px; color: #fbbf24; line-height: 1.6;">
+            💡 提示：若您在 Cloudflare Pages 设置了 <code>GITHUB_CLIENT_ID</code> 与 <code>GITHUB_CLIENT_SECRET</code>，请进入 Deployments 执行一次 <strong>Redeploy (重新部署)</strong> 激活生效。
+          </div>
+          <div>
+            <a href="/#/" style="display: inline-block; padding: 9px 20px; background: #27272a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 12px;">立即返回系统主页</a>
+          </div>
+          <p style="color: #71717a; font-size: 11px; margin-top: 15px;">5秒后自动返回系统主页...</p>
+        </div>
         <script>
           if (window.opener) {
             window.opener.postMessage({ type: 'OAUTH_AUTH_ERROR', error: '${err.message || "未知错误"}' }, '*');
+            setTimeout(() => window.close(), 3000);
+          } else {
+            setTimeout(() => { window.location.href = '/#/'; }, 5000);
           }
-          setTimeout(() => window.close(), 3000);
         </script>
       </body>
       </html>
