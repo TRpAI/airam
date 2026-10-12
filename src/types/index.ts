@@ -125,3 +125,16 @@ export interface RepoSubmission {
   reviewed_at?: string;
   reviewed_by?: string;
 }
+
+export interface RepoComment {
+  id: string;
+  repo_id: string;
+  repo_name: string;
+  author_login: string;
+  author_name: string;
+  author_avatar: string;
+  author_role: 'admin' | 'visitor';
+  content: string;
+  created_at: string;
+  updated_at?: string;
+}

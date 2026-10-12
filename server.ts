@@ -127,51 +127,35 @@ function saveAdminSystem(data: AdminSystemData) {
 
 let adminSystemCache: AdminSystemData = loadAdminSystem();
 
+export function getAdminUserList(): string[] {
+  const raw = process.env.ADMIN_USER || '';
+  if (!raw || !raw.trim()) {
+    return process.env.NODE_ENV === 'production' ? [] : ['osahermes'];
+  }
+  return raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+export function isUserAdmin(username?: string | null): boolean {
+  if (!username) return false;
+  const list = getAdminUserList();
+  if (list.length === 0) return false;
+  return list.includes(username.trim().toLowerCase());
+}
+
 /**
- * Assign role: The FIRST user to log in automatically becomes the system Administrator.
- * Subsequent users become visitors.
+ * Assign role: ONLY users matching ADMIN_USER environment variable are Administrator.
+ * All other GitHub logins are visitors.
  */
 function resolveUserRole(
   rawUser: { login: string; name?: string; avatar_url?: string },
-  via: 'oauth' | 'token' | 'demo'
+  _via: 'oauth' | 'token' | 'demo'
 ): { role: 'admin' | 'visitor'; isAdmin: boolean; isFirstAdminClaim: boolean; registeredAt?: string } {
-  const currentAdmin = adminSystemCache.admin;
-
-  if (!currentAdmin) {
-    // This is the FIRST user! Claim administrator rights!
-    const newAdmin: AdminRecord = {
-      login: rawUser.login,
-      name: rawUser.name || rawUser.login,
-      avatar_url: rawUser.avatar_url || `https://github.com/${rawUser.login}.png`,
-      claimedAt: new Date().toISOString(),
-      claimedVia: via,
-    };
-    adminSystemCache = { admin: newAdmin };
-    saveAdminSystem(adminSystemCache);
-    return {
-      role: 'admin',
-      isAdmin: true,
-      isFirstAdminClaim: true,
-      registeredAt: newAdmin.claimedAt,
-    };
-  }
-
-  // Admin already exists. Check if this is the registered admin
-  if (currentAdmin.login.toLowerCase() === rawUser.login.toLowerCase()) {
-    return {
-      role: 'admin',
-      isAdmin: true,
-      isFirstAdminClaim: false,
-      registeredAt: currentAdmin.claimedAt,
-    };
-  }
-
-  // Not the registered administrator: visitor
+  const isAdmin = isUserAdmin(rawUser.login);
   return {
-    role: 'visitor',
-    isAdmin: false,
+    role: isAdmin ? 'admin' : 'visitor',
+    isAdmin,
     isFirstAdminClaim: false,
-    registeredAt: undefined,
+    registeredAt: isAdmin ? new Date().toISOString() : undefined,
   };
 }
 
@@ -266,6 +250,76 @@ function saveSubmissions(data: RepoSubmission[]) {
 }
 
 let submissionsCache: RepoSubmission[] = loadSubmissions();
+
+// --- 3.5 Repo Comments Data Store ---
+const COMMENTS_STORE_FILE = path.join(DATA_DIR, 'comments.json');
+
+export interface RepoComment {
+  id: string;
+  repo_id: string;
+  repo_name: string;
+  author_login: string;
+  author_name: string;
+  author_avatar: string;
+  author_role: 'admin' | 'visitor';
+  content: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+const defaultComments: RepoComment[] = [
+  {
+    id: 'cmt-sample-1',
+    repo_id: 'tailwindcss',
+    repo_name: 'tailwindlabs/tailwindcss',
+    author_login: 'developer_guest',
+    author_name: 'Developer Guest',
+    author_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+    author_role: 'visitor',
+    content: 'Tailwind CSS 的原子化类名配合 JIT 引擎，在生产环境极大减少了无用样式体积，非常推荐！',
+    created_at: new Date(Date.now() - 3600000 * 20).toISOString(),
+  },
+  {
+    id: 'cmt-sample-2',
+    repo_id: 'tailwindcss',
+    repo_name: 'tailwindlabs/tailwindcss',
+    author_login: 'osahermes',
+    author_name: 'Osa Hermes',
+    author_avatar: 'https://github.com/osahermes.png',
+    author_role: 'admin',
+    content: '已收录至系统精选项目库，感谢推荐！',
+    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+  }
+];
+
+function loadComments(): RepoComment[] {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(COMMENTS_STORE_FILE)) {
+      const raw = fs.readFileSync(COMMENTS_STORE_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.warn('Failed to load comments:', err);
+  }
+  return defaultComments;
+}
+
+function saveComments(data: RepoComment[]): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(COMMENTS_STORE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save comments:', err);
+  }
+}
+
+let commentsCache: RepoComment[] = loadComments();
 
 function parseGitHubRepo(input: string): { owner: string; name: string } | null {
   if (!input || typeof input !== 'string') return null;
@@ -650,14 +704,16 @@ async function startServer() {
 
               // 4. 若为弹出的授权窗口，授权完毕后立即关闭当前页，绝不在弹窗内刷新至站点页面
               const stateParam = ${JSON.stringify(req.query.state || '')};
-              const isSingleWindowDirect = stateParam.includes('direct') && !stateParam.includes('popup');
+              const isFullPageRedirect = stateParam.includes('direct_fullpage');
 
-              if (!isSingleWindowDirect) {
+              if (!isFullPageRedirect) {
                 try { window.close(); } catch (e) {}
-                setTimeout(() => { try { window.close(); } catch (e) {} }, 250);
-                setTimeout(() => { try { window.close(); } catch (e) {} }, 800);
+                setTimeout(() => { try { window.close(); } catch (e) {} }, 100);
+                setTimeout(() => { try { window.close(); } catch (e) {} }, 400);
+                setTimeout(() => { try { window.close(); } catch (e) {} }, 900);
               } else {
-                window.location.href = '/#/admin/dashboard';
+                const targetUrl = authPayload.user.isAdmin ? '/#/admin/dashboard' : '/#/user/dashboard';
+                window.location.href = targetUrl;
               }
             </script>
           </body>
@@ -1015,6 +1071,81 @@ async function startServer() {
     res.json({
       success: true,
       message: initialLen !== submissionsCache.length ? '已成功删除该记录' : '记录不存在',
+    });
+  });
+
+  // 6.6 Comments API (Discussion system for projects & showcase)
+  app.get('/api/comments', (req, res) => {
+    const { repoId, repo_id, author } = req.query as { repoId?: string; repo_id?: string; author?: string };
+    const targetRepo = repoId || repo_id;
+    let list = [...commentsCache];
+
+    if (targetRepo) {
+      const cleanRepo = targetRepo.trim().toLowerCase();
+      list = list.filter(c => c.repo_id.toLowerCase() === cleanRepo || c.repo_name.toLowerCase().includes(cleanRepo));
+    }
+    if (author) {
+      list = list.filter(c => c.author_login.toLowerCase() === author.trim().toLowerCase());
+    }
+
+    res.json({
+      success: true,
+      comments: list,
+      total: list.length,
+    });
+  });
+
+  app.post('/api/comments', (req, res) => {
+    const { repo_id, repo_name, content, author_login, author_name, author_avatar } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: '评论内容不能为空' });
+    }
+    if (!author_login || !author_login.trim()) {
+      return res.status(401).json({ error: '请先登录 GitHub 账号后再发表评论' });
+    }
+
+    const isAdmin = isUserAdmin(author_login);
+    const newComment: RepoComment = {
+      id: `cmt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      repo_id: (repo_id || 'general').trim(),
+      repo_name: (repo_name || repo_id || '开源项目').trim(),
+      author_login: author_login.trim(),
+      author_name: (author_name || author_login).trim(),
+      author_avatar: author_avatar || `https://github.com/${author_login}.png`,
+      author_role: isAdmin ? 'admin' : 'visitor',
+      content: content.trim(),
+      created_at: new Date().toISOString(),
+    };
+
+    commentsCache.unshift(newComment);
+    saveComments(commentsCache);
+
+    res.json({
+      success: true,
+      comment: newComment,
+    });
+  });
+
+  app.delete('/api/comments/:id', (req, res) => {
+    const { id } = req.params;
+    const user = (req.query.user as string) || (req.body?.user as string);
+
+    const comment = commentsCache.find(c => c.id === id);
+    if (!comment) {
+      return res.status(404).json({ error: '未找到该评论' });
+    }
+
+    const isAdmin = isUserAdmin(user);
+    if (user && comment.author_login.toLowerCase() !== user.toLowerCase() && !isAdmin) {
+      return res.status(403).json({ error: '无权删除此评论' });
+    }
+
+    commentsCache = commentsCache.filter(c => c.id !== id);
+    saveComments(commentsCache);
+
+    res.json({
+      success: true,
+      message: '已删除评论',
     });
   });
 

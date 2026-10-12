@@ -210,139 +210,90 @@ async function setRemoteAdmin(env: EnvWithStorage, admin: AdminRecord | null): P
 }
 
 /**
- * Retrieve the currently locked administrator.
- * Guaranteed multi-tiered check across:
- * 1. env.ADMIN_USER (Hardcoded permanent override)
- * 2. Cloudflare D1
- * 3. Cloudflare KV
- * 4. Cloudflare Zone Cache API
- * 5. In-memory isolate cache
- * 6. Edge Remote KV fallback
+ * Helper to get the list of configured admin usernames from Cloudflare env.ADMIN_USER
  */
-export async function getAdminRecord(env: EnvWithStorage, requestUrl?: string): Promise<AdminRecord | null> {
-  // 1. Explicit env override: ADMIN_USER
-  if (env.ADMIN_USER && env.ADMIN_USER.trim()) {
-    const username = env.ADMIN_USER.trim();
+export function getAdminUserList(env: EnvWithStorage): string[] {
+  const raw = env.ADMIN_USER || '';
+  if (!raw || !raw.trim()) return [];
+  return raw
+    .split(',')
+    .map((s: string) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * Check if a given GitHub login is in the ADMIN_USER list.
+ */
+export function isUserAdmin(env: EnvWithStorage, username?: string | null): boolean {
+  if (!username) return false;
+  const adminList = getAdminUserList(env);
+  if (adminList.length === 0) return false;
+  return adminList.includes(username.trim().toLowerCase());
+}
+
+/**
+ * Retrieve the currently configured administrator record from env.ADMIN_USER.
+ * Removed the dynamic first-login claim mechanism so only Cloudflare ADMIN_USER is admin.
+ */
+export async function getAdminRecord(env: EnvWithStorage, _requestUrl?: string): Promise<AdminRecord | null> {
+  const adminList = getAdminUserList(env);
+  if (adminList.length > 0) {
+    const primaryAdmin = adminList[0];
     return {
-      login: username,
-      name: username,
-      avatar_url: `https://github.com/${username}.png`,
+      login: primaryAdmin,
+      name: primaryAdmin,
+      avatar_url: `https://github.com/${primaryAdmin}.png`,
       claimedVia: 'env',
       claimedAt: new Date().toISOString(),
     };
   }
-
-  // 2. Check D1 Database
-  const d1Admin = await getD1Admin(env);
-  if (d1Admin) {
-    inMemoryAdmin = d1Admin;
-    setCachedAdmin(d1Admin, requestUrl);
-    return d1Admin;
-  }
-
-  // 3. Check KV
-  const kvAdmin = await getKvAdmin(env);
-  if (kvAdmin) {
-    inMemoryAdmin = kvAdmin;
-    setCachedAdmin(kvAdmin, requestUrl);
-    return kvAdmin;
-  }
-
-  // 4. Check Cloudflare Edge Cache
-  const cachedAdmin = await getCachedAdmin(requestUrl);
-  if (cachedAdmin) {
-    inMemoryAdmin = cachedAdmin;
-    return cachedAdmin;
-  }
-
-  // 5. Check in-memory isolate cache
-  if (inMemoryAdmin) {
-    return inMemoryAdmin;
-  }
-
-  // 6. Check Edge Remote KV sync (guarantees cross-browser & cross-isolate persistence without DB bindings)
-  const remoteAdmin = await getRemoteAdmin(env);
-  if (remoteAdmin) {
-    inMemoryAdmin = remoteAdmin;
-    setCachedAdmin(remoteAdmin, requestUrl);
-    return remoteAdmin;
-  }
-
   return null;
 }
 
 /**
- * Save the first claimed administrator across all storage layers.
+ * Save admin record stub (maintained for interface compatibility)
  */
-export async function saveAdminRecord(env: EnvWithStorage, admin: AdminRecord, requestUrl?: string): Promise<void> {
-  inMemoryAdmin = admin;
-  await Promise.allSettled([
-    setD1Admin(env, admin),
-    setKvAdmin(env, admin),
-    setCachedAdmin(admin, requestUrl),
-    setRemoteAdmin(env, admin),
-  ]);
+export async function saveAdminRecord(_env: EnvWithStorage, _admin: AdminRecord, _requestUrl?: string): Promise<void> {
+  // No-op: Admins are purely governed by Cloudflare Pages ADMIN_USER environment variable
 }
 
 /**
- * Reset administrator lock.
+ * Reset admin record stub
  */
-export async function resetAdminRecord(env: EnvWithStorage, requestUrl?: string): Promise<void> {
-  inMemoryAdmin = null;
-  await Promise.allSettled([
-    setD1Admin(env, null),
-    setKvAdmin(env, null),
-    setCachedAdmin(null, requestUrl),
-    setRemoteAdmin(env, null),
-  ]);
+export async function resetAdminRecord(_env: EnvWithStorage, _requestUrl?: string): Promise<void> {
+  // No-op
 }
 
 /**
- * Resolves role: The first user to authorize claims the admin seat.
- * Subsequent users with different usernames are strictly 'visitor'.
+ * Resolves role strictly based on Cloudflare Pages ADMIN_USER environment variable:
+ * - If env.ADMIN_USER contains the user's login -> 'admin'
+ * - Otherwise -> 'visitor'
+ * The first-user-claims-admin mechanism has been completely removed.
  */
 export async function resolveRole(
   env: EnvWithStorage,
   rawUser: { login: string; name?: string; avatar_url?: string },
   via: 'oauth' | 'token' | 'demo' = 'oauth',
-  requestUrl?: string
-): Promise<{ role: 'admin' | 'visitor'; isAdmin: boolean; isFirstAdminClaim: boolean; admin: AdminRecord }> {
-  const currentAdmin = await getAdminRecord(env, requestUrl);
+  _requestUrl?: string
+): Promise<{ role: 'admin' | 'visitor'; isAdmin: boolean; isFirstAdminClaim: boolean; admin: AdminRecord | null }> {
+  const isAdmin = isUserAdmin(env, rawUser.login);
+  const role: 'admin' | 'visitor' = isAdmin ? 'admin' : 'visitor';
 
-  if (!currentAdmin) {
-    // FIRST USER! Claim administrator seat!
-    const newAdmin: AdminRecord = {
+  let adminRecord: AdminRecord | null = null;
+  if (isAdmin) {
+    adminRecord = {
       login: rawUser.login,
       name: rawUser.name || rawUser.login,
       avatar_url: rawUser.avatar_url || `https://github.com/${rawUser.login}.png`,
       claimedVia: via,
       claimedAt: new Date().toISOString(),
     };
-    await saveAdminRecord(env, newAdmin, requestUrl);
-    return {
-      role: 'admin',
-      isAdmin: true,
-      isFirstAdminClaim: true,
-      admin: newAdmin,
-    };
   }
 
-  // Admin already exists! Check if this user is the registered admin:
-  const isMatch = currentAdmin.login.toLowerCase() === rawUser.login.toLowerCase();
-  if (isMatch) {
-    return {
-      role: 'admin',
-      isAdmin: true,
-      isFirstAdminClaim: false,
-      admin: currentAdmin,
-    };
-  }
-
-  // Different user: STRICTLY VISITOR
   return {
-    role: 'visitor',
-    isAdmin: false,
+    role,
+    isAdmin,
     isFirstAdminClaim: false,
-    admin: currentAdmin,
+    admin: adminRecord,
   };
 }

@@ -3,8 +3,10 @@ import { MainNavTab } from '../components/Header';
 
 export type PublicSection = 'all' | 'projects' | 'community' | 'knowledge';
 
+export type ViewMode = 'public' | 'admin' | 'user';
+
 export interface RouteState {
-  viewMode: 'public' | 'admin';
+  viewMode: ViewMode;
   adminTab: MainNavTab;
   publicSection: PublicSection;
   selectedDocId: string | null;
@@ -37,7 +39,7 @@ export const VALID_PUBLIC_SECTIONS: PublicSection[] = [
 export function parseRouteFromLocation(): RouteState | null {
   if (typeof window === 'undefined') return null;
 
-  // 1. 优先提取 hash（例如 #/admin/settings, #/settings, #/projects, #/doc/kb-1）
+  // 1. 优先提取 hash（例如 #/admin/settings, #/settings, #/projects, #/doc/kb-1, #/user/dashboard）
   const hashRaw = window.location.hash.replace(/^#\/?/, '').trim();
 
   // 2. 提取 pathname（用于无 hash 时的直接访问或刷新）
@@ -45,14 +47,14 @@ export function parseRouteFromLocation(): RouteState | null {
 
   // 3. 提取 query params（用于 ?mode=admin&tab=settings 等）
   const searchParams = new URLSearchParams(window.location.search);
-  const qMode = searchParams.get('mode') as 'public' | 'admin' | null;
+  const qMode = searchParams.get('mode') as ViewMode | null;
   const qTab = searchParams.get('tab') as MainNavTab | null;
   const qSection = searchParams.get('section') as PublicSection | null;
   const qDoc = searchParams.get('doc');
 
   const candidate = hashRaw || (pathRaw && pathRaw !== 'index.html' ? pathRaw : '');
 
-  // 规则 0: OAuth 回调拦截 (识别 auth/callback 或 ?code=，直接定位至管理员后台)
+  // 规则 0: OAuth 回调拦截 (识别 auth/callback 或 ?code=，直接定位至管理或访客后台)
   if (pathRaw.includes('auth/callback') || searchParams.has('code')) {
     return {
       viewMode: 'admin',
@@ -63,6 +65,16 @@ export function parseRouteFromLocation(): RouteState | null {
   }
 
   if (candidate) {
+    // 规则 0.5: 访客用户专属工作台复合路径 user 或 user/:tab
+    if (candidate.startsWith('user')) {
+      return {
+        viewMode: 'user',
+        adminTab: 'dashboard',
+        publicSection: 'all',
+        selectedDocId: null
+      };
+    }
+
     // 规则 A: 管理后台复合路径 admin 或 admin/:tab 或 admin/knowledge/:docId
     if (candidate.startsWith('admin')) {
       const parts = candidate.split('/');
@@ -135,8 +147,9 @@ export function getStoredRoute(): RouteState {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        const viewMode: ViewMode = parsed.viewMode === 'admin' ? 'admin' : parsed.viewMode === 'user' ? 'user' : 'public';
         return {
-          viewMode: parsed.viewMode === 'admin' ? 'admin' : 'public',
+          viewMode,
           adminTab: VALID_ADMIN_TABS.includes(parsed.adminTab) ? parsed.adminTab : 'dashboard',
           publicSection: VALID_PUBLIC_SECTIONS.includes(parsed.publicSection) ? parsed.publicSection : 'all',
           selectedDocId: parsed.selectedDocId || null,
@@ -159,6 +172,9 @@ export function getStoredRoute(): RouteState {
  * 根据路由状态生成规范化 URL Hash
  */
 export function buildHash(route: RouteState): string {
+  if (route.viewMode === 'user') {
+    return '#/user/dashboard';
+  }
   if (route.viewMode === 'admin') {
     if (route.adminTab === 'knowledge' && route.selectedKnowledgeId) {
       return `#/admin/knowledge/${route.selectedKnowledgeId}`;
@@ -241,7 +257,7 @@ export function useAppRouter() {
   }, []);
 
   // 快捷路由操作函数
-  const setViewMode = useCallback((mode: 'public' | 'admin') => {
+  const setViewMode = useCallback((mode: ViewMode) => {
     updateRoute((prev) => ({
       ...prev,
       viewMode: mode,

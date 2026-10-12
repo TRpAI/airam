@@ -183,19 +183,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
           }
 
           // 4. 判定是否为弹窗/新标签授权流：
-          // 默认关闭当前页！绝不在弹出的授权页面刷新至站点后台！
-          const isSingleWindowDirect = stateParam.includes('direct') && !stateParam.includes('popup');
+          // 核心原则：绝不在弹出的授权窗口内刷新跳转至站点后台！必须关闭弹窗并让原页面刷新！
+          const isFullPageRedirect = stateParam.includes('direct_fullpage');
 
-          if (!isSingleWindowDirect) {
-            // 立即尝试关闭当前窗口
+          if (!isFullPageRedirect) {
+            // 弹窗或独立授权标签：立即并多段尝试关闭本窗口
             try { window.close(); } catch (e) {}
-            setTimeout(() => { try { window.close(); } catch (e) {} }, 250);
-            setTimeout(() => { try { window.close(); } catch (e) {} }, 800);
+            setTimeout(() => { try { window.close(); } catch (e) {} }, 100);
+            setTimeout(() => { try { window.close(); } catch (e) {} }, 400);
+            setTimeout(() => { try { window.close(); } catch (e) {} }, 900);
           } else {
-            // 仅在明确的同窗口无弹窗重定向模式下在当前窗口进入后台
-            document.getElementById('action-box').innerHTML = '<a href="/#/admin/dashboard" style="display:inline-block;padding:8px 18px;background:#10b981;color:#000;font-weight:600;text-decoration:none;border-radius:8px;font-size:12px;">进入控制台</a>';
+            // 仅在明确声明同页整页重定向模式下，才在当前页导航
+            const targetUrl = payload.isAdmin ? '/#/admin/dashboard' : '/#/user/dashboard';
+            document.getElementById('action-box').innerHTML = '<a href="' + targetUrl + '" style="display:inline-block;padding:8px 18px;background:#10b981;color:#000;font-weight:600;text-decoration:none;border-radius:8px;font-size:12px;">进入工作台</a>';
             setTimeout(() => {
-              window.location.href = '/#/admin/dashboard';
+              window.location.href = targetUrl;
             }, 600);
           }
         </script>

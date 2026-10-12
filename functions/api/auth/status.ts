@@ -34,16 +34,20 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   let hasAdmin = false;
   let adminUsername: string | null = null;
   let adminUser: any = null;
+  const adminList = (env.ADMIN_USER || '')
+    .split(',')
+    .map((s: string) => s.trim().toLowerCase())
+    .filter(Boolean);
 
-  try {
-    const adminRecord = await getAdminRecord(env, context.request.url);
-    if (adminRecord && adminRecord.login) {
-      hasAdmin = true;
-      adminUsername = adminRecord.login;
-      adminUser = adminRecord;
-    }
-  } catch (err) {
-    console.warn('Failed to query admin record in status.ts:', err);
+  if (adminList.length > 0) {
+    hasAdmin = true;
+    adminUsername = adminList[0];
+    adminUser = {
+      login: adminUsername,
+      name: adminUsername,
+      avatar_url: `https://github.com/${adminUsername}.png`,
+      claimedAt: new Date().toISOString(),
+    };
   }
 
   return new Response(JSON.stringify({
@@ -56,6 +60,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     hasAdmin,
     adminUsername,
     adminUser,
+    adminUsers: adminList,
     environment: env.ENVIRONMENT || 'production',
     isCloudflare: true
   }), {
