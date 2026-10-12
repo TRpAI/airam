@@ -1,3 +1,5 @@
+import { resolveRole } from '../../_admin';
+
 interface Env {
   DB?: any;
 }
@@ -32,40 +34,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       avatar_url: `https://github.com/${username}.png`,
       html_url: `https://github.com/${username}`
     };
-    let isAdmin = false;
-    let isFirstAdmin = false;
 
-    if (context.env.DB) {
-      try {
-        await context.env.DB.prepare(`
-          CREATE TABLE IF NOT EXISTS admin_system (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_login TEXT NOT NULL,
-            admin_name TEXT,
-            avatar_url TEXT,
-            claimed_via TEXT,
-            claimed_at TEXT
-          )
-        `).run();
-
-        const currentAdmin: any = await context.env.DB.prepare('SELECT * FROM admin_system LIMIT 1').first();
-        if (!currentAdmin) {
-          await context.env.DB.prepare(`
-            INSERT INTO admin_system (admin_login, admin_name, avatar_url, claimed_via, claimed_at)
-            VALUES (?, ?, ?, 'token', ?)
-          `).bind(ghUser.login, ghUser.name || ghUser.login, ghUser.avatar_url, new Date().toISOString()).run();
-          isAdmin = true;
-          isFirstAdmin = true;
-        } else if (currentAdmin.admin_login.toLowerCase() === ghUser.login.toLowerCase()) {
-          isAdmin = true;
-        }
-      } catch (err) {
-        isAdmin = true;
-      }
-    } else {
-      isAdmin = true;
-      isFirstAdmin = true;
-    }
+    const { role, isAdmin, isFirstAdminClaim } = await resolveRole(context.env, ghUser, 'demo', context.request.url);
 
     const userPayload = {
       id: ghUser.id,
@@ -75,13 +45,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       html_url: ghUser.html_url,
       role: isAdmin ? 'admin' : 'visitor',
       isAdmin,
-      isFirstAdminClaim: isFirstAdmin,
+      isFirstAdminClaim,
     };
 
     return new Response(JSON.stringify({
       user: userPayload,
       token,
-      isFirstAdminClaim: isFirstAdmin,
+      isFirstAdminClaim,
     }), {
       headers: {
         'Content-Type': 'application/json',

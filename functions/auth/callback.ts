@@ -1,3 +1,5 @@
+import { resolveRole } from '../_admin';
+
 interface Env {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
@@ -89,44 +91,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     const ghUser: any = await userRes.json();
 
-    // 3. First user becomes Admin
-    let isAdmin = false;
-    let isFirstAdmin = false;
-
-    if (env.DB) {
-      try {
-        await env.DB.prepare(`
-          CREATE TABLE IF NOT EXISTS admin_system (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_login TEXT NOT NULL,
-            admin_name TEXT,
-            avatar_url TEXT,
-            claimed_via TEXT,
-            claimed_at TEXT
-          )
-        `).run();
-
-        const currentAdmin: any = await env.DB.prepare('SELECT * FROM admin_system LIMIT 1').first();
-        if (!currentAdmin) {
-          // This is the FIRST user!
-          await env.DB.prepare(`
-            INSERT INTO admin_system (admin_login, admin_name, avatar_url, claimed_via, claimed_at)
-            VALUES (?, ?, ?, 'oauth', ?)
-          `).bind(ghUser.login, ghUser.name || ghUser.login, ghUser.avatar_url, new Date().toISOString()).run();
-          isAdmin = true;
-          isFirstAdmin = true;
-        } else if (currentAdmin.admin_login.toLowerCase() === ghUser.login.toLowerCase()) {
-          isAdmin = true;
-        }
-      } catch (dbErr) {
-        console.warn('D1 admin lookup error:', dbErr);
-        isAdmin = true; // Fallback grant to first session
-      }
-    } else {
-      // No D1 bound: grant admin for session
-      isAdmin = true;
-      isFirstAdmin = true;
-    }
+    // 3. Resolve Admin vs Visitor Role using robust multi-layer lock
+    const { role, isAdmin, isFirstAdminClaim } = await resolveRole(env, ghUser, 'oauth', context.request.url);
 
     const userPayload = {
       id: ghUser.id,
@@ -134,9 +100,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       name: ghUser.name || ghUser.login,
       avatar_url: ghUser.avatar_url,
       html_url: ghUser.html_url,
-      role: isAdmin ? 'admin' : 'visitor',
+      role,
       isAdmin,
-      isFirstAdminClaim: isFirstAdmin,
+      isFirstAdminClaim,
     };
 
     if (context.request.headers.get('Accept')?.includes('application/json') || url.searchParams.get('format') === 'json') {
@@ -144,7 +110,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         success: true,
         user: userPayload,
         token: accessToken,
-        isFirstAdminClaim: isFirstAdmin,
+        isFirstAdminClaim,
       }), {
         headers: {
           'Content-Type': 'application/json',
@@ -159,35 +125,78 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       <html>
       <head><meta charset="utf-8"><title>GitHub 授权成功</title></head>
       <body style="font-family: -apple-system, monospace; padding: 40px; text-align: center; background: #09090b; color: #10b981;">
-        <div style="max-width: 420px; margin: 40px auto; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
-          <div style="font-size: 28px; margin-bottom: 12px;">👑</div>
+        <div style="max-width: 440px; margin: 40px auto; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.6);">
+          <div style="font-size: 36px; margin-bottom: 12px;">✅</div>
           <h2 style="margin: 0 0 10px; color: #fff; font-size: 16px; font-weight: 600;">
-            ${isAdmin ? '已绑定最高管理员身份' : '欢迎访问 - 访客模式'}
+            ${isAdmin ? '👑 成功以系统管理员身份认证' : '👋 成功以访客身份认证'}
           </h2>
-          <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5;">正在同步认证凭据并进入管理工作台...</p>
-          <div style="margin-top: 24px;">
-            <a href="/#/admin/dashboard" style="display: inline-block; padding: 8px 18px; background: #10b981; color: #000; font-weight: 600; text-decoration: none; border-radius: 8px; font-size: 12px;">立即进入控制台</a>
+          <p id="status-desc" style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
+            已完成 GitHub 身份授权，正在同步凭证并关闭当前窗口，原工作台页面将自动刷新...
+          </p>
+          <div style="margin-top: 16px;" id="action-box">
+            <button onclick="window.close()" style="cursor: pointer; border: none; padding: 10px 24px; background: #10b981; color: #000; font-weight: 600; border-radius: 8px; font-size: 13px; box-shadow: 0 2px 10px rgba(16,185,129,0.3);">
+              关闭当前页面返回工作台
+            </button>
           </div>
+          <p style="color: #71717a; font-size: 11px; margin-top: 18px;">
+            若浏览器未自动关闭此页面，请点击上方按钮关闭返回
+          </p>
         </div>
         <script>
           const payload = ${JSON.stringify(userPayload)};
           const token = ${JSON.stringify(accessToken)};
-          if (window.opener) {
-            window.opener.postMessage({
-              type: 'OAUTH_AUTH_SUCCESS',
-              user: payload,
-              token: token
-            }, '*');
-            setTimeout(() => window.close(), 600);
-          } else {
+          const stateParam = ${JSON.stringify(url.searchParams.get('state') || '')};
+
+          // 1. 同步保存至本地存储，触发同源窗口 storage 监听
+          try {
             localStorage.setItem('devhub_auth_session', JSON.stringify({
               isAuthenticated: true,
               user: payload,
               token: token
             }));
+            localStorage.setItem('airam_oauth_notify', Date.now().toString());
+          } catch (e) {}
+
+          // 2. 通过 BroadcastChannel 向原工作台页面广播授权成功事件 (跨窗口100%可靠，无 opener 丢失风险)
+          try {
+            const bc = new BroadcastChannel('airam_oauth_auth_channel');
+            bc.postMessage({
+              type: 'OAUTH_AUTH_SUCCESS',
+              user: payload,
+              token: token,
+              shouldRefresh: true
+            });
+            setTimeout(() => { bc.close(); }, 1200);
+          } catch (e) {}
+
+          // 3. 尝试向 window.opener 发送标准 postMessage 并聚焦原窗口
+          if (window.opener && !window.opener.closed) {
+            try {
+              window.opener.postMessage({
+                type: 'OAUTH_AUTH_SUCCESS',
+                user: payload,
+                token: token,
+                shouldRefresh: true
+              }, '*');
+              try { window.opener.focus(); } catch (fErr) {}
+            } catch (e) {}
+          }
+
+          // 4. 判定是否为弹窗/新标签授权流：
+          // 默认关闭当前页！绝不在弹出的授权页面刷新至站点后台！
+          const isSingleWindowDirect = stateParam.includes('direct') && !stateParam.includes('popup');
+
+          if (!isSingleWindowDirect) {
+            // 立即尝试关闭当前窗口
+            try { window.close(); } catch (e) {}
+            setTimeout(() => { try { window.close(); } catch (e) {} }, 250);
+            setTimeout(() => { try { window.close(); } catch (e) {} }, 800);
+          } else {
+            // 仅在明确的同窗口无弹窗重定向模式下在当前窗口进入后台
+            document.getElementById('action-box').innerHTML = '<a href="/#/admin/dashboard" style="display:inline-block;padding:8px 18px;background:#10b981;color:#000;font-weight:600;text-decoration:none;border-radius:8px;font-size:12px;">进入控制台</a>';
             setTimeout(() => {
               window.location.href = '/#/admin/dashboard';
-            }, 500);
+            }, 600);
           }
         </script>
       </body>

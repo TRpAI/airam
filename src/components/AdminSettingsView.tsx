@@ -319,11 +319,22 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
 
           <button
             onClick={() => setResetConfirmOpen(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors text-xs"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors text-xs shrink-0"
           >
             <RefreshCw className="h-3 w-3" />
             <span>释放/重置席位</span>
           </button>
+        </div>
+
+        <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400 space-y-1">
+          <div className="font-semibold text-zinc-700 dark:text-zinc-200 flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+            <span>全边缘多端持久锁定机制已生效</span>
+          </div>
+          <p className="leading-relaxed">
+            系统已启用 Cloudflare Zone Cache、KV/D1 及全局边缘 Key-Value 同步，确保跨浏览器、跨设备登录时均严格锁定首位管理员，其他 GitHub 账号只能以访客登录。
+            若需物理级硬性锁定管理员账号，可在 Cloudflare Pages 设置环境变量 <code>ADMIN_USER={user?.login || '您的GitHub账号'}</code>。
+          </p>
         </div>
 
         {resetConfirmOpen && (

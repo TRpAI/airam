@@ -111,7 +111,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
   const directOAuthUrl = activeClientId
     ? `https://github.com/login/oauth/authorize?client_id=${activeClientId}&redirect_uri=${encodeURIComponent(
         `${currentOrigin.replace(/\/$/, '')}/auth/callback`
-      )}&response_type=code&scope=read%3Auser+user%3Aemail+repo&state=admin_login_${Date.now()}`
+      )}&response_type=code&scope=read%3Auser+user%3Aemail+repo&state=popup_admin_login_${Date.now()}`
     : '';
 
   const handleOAuthClick = async (forceDirect = false) => {
@@ -283,14 +283,23 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                 </div>
                 <div className="space-y-1.5">
                   <h2 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                    🎉 GitHub 授权验证成功
+                    ✅ GitHub 授权已完成
                   </h2>
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                    {callbackStatusMsg || '已绑定最高管理员所有者席位，正在载入管理控制台...'}
+                    已成功同步凭据至原工作台窗口，正在关闭当前授权页...
                   </p>
                 </div>
                 <div className="h-2 w-full rounded-full bg-emerald-500/20 overflow-hidden">
                   <div className="h-full bg-emerald-500 w-full animate-pulse rounded-full" />
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => window.close()}
+                    className="py-2.5 px-5 rounded-xl bg-emerald-600 text-white font-semibold text-xs cursor-pointer hover:bg-emerald-500 shadow-sm"
+                  >
+                    立即关闭此页面返回工作台
+                  </button>
                 </div>
               </div>
             )}
@@ -550,11 +559,16 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                   <a
                     href={directOAuthUrl}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="opener"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem('airam_oauth_mode', 'popup');
+                      } catch {}
+                    }}
                     className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-medium"
                     title="在新标签页直接打开 GitHub 授权页面"
                   >
-                    <span>新标签页直接打开</span>
+                    <span>新标签页打开</span>
                     <ExternalLink className="h-3 w-3" />
                   </a>
                   <span className="text-zinc-300 dark:text-zinc-700">·</span>

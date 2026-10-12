@@ -622,19 +622,41 @@ async function startServer() {
                 token: accessToken,
                 isFirstAdminClaim 
               })};
-              if (window.opener) {
-                window.opener.postMessage(authPayload, '*');
-                setTimeout(() => {
-                  window.close();
-                }, 750);
-              } else {
+
+              // 1. 同步保存至本地存储，触发同源窗口 storage 监听
+              try {
+                localStorage.setItem('devhub_auth_session', JSON.stringify({
+                  isAuthenticated: true,
+                  user: userData,
+                  token: accessToken
+                }));
+                localStorage.setItem('airam_oauth_notify', Date.now().toString());
+              } catch (e) {}
+
+              // 2. 通过 BroadcastChannel 向原工作台广播
+              try {
+                const bc = new BroadcastChannel('airam_oauth_auth_channel');
+                bc.postMessage(authPayload);
+                setTimeout(() => bc.close(), 1000);
+              } catch (e) {}
+
+              // 3. 向 window.opener 发送标准 postMessage
+              if (window.opener && !window.opener.closed) {
                 try {
-                  localStorage.setItem('devhub_auth_session', JSON.stringify({
-                    isAuthenticated: true,
-                    user: userData,
-                    token: accessToken
-                  }));
+                  window.opener.postMessage(authPayload, '*');
+                  window.opener.focus();
                 } catch (e) {}
+              }
+
+              // 4. 若为弹出的授权窗口，授权完毕后立即关闭当前页，绝不在弹窗内刷新至站点页面
+              const stateParam = ${JSON.stringify(req.query.state || '')};
+              const isSingleWindowDirect = stateParam.includes('direct') && !stateParam.includes('popup');
+
+              if (!isSingleWindowDirect) {
+                try { window.close(); } catch (e) {}
+                setTimeout(() => { try { window.close(); } catch (e) {} }, 250);
+                setTimeout(() => { try { window.close(); } catch (e) {} }, 800);
+              } else {
                 window.location.href = '/#/admin/dashboard';
               }
             </script>

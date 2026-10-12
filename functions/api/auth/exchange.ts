@@ -1,3 +1,5 @@
+import { resolveRole } from '../../_admin';
+
 interface Env {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
@@ -93,42 +95,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     const ghUser: any = await userRes.json();
 
-    // 3. Admin assignment: first user automatically claims admin seat
-    let isAdmin = false;
-    let isFirstAdmin = false;
-
-    if (env.DB) {
-      try {
-        await env.DB.prepare(`
-          CREATE TABLE IF NOT EXISTS admin_system (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_login TEXT NOT NULL,
-            admin_name TEXT,
-            avatar_url TEXT,
-            claimed_via TEXT,
-            claimed_at TEXT
-          )
-        `).run();
-
-        const currentAdmin: any = await env.DB.prepare('SELECT * FROM admin_system LIMIT 1').first();
-        if (!currentAdmin) {
-          await env.DB.prepare(`
-            INSERT INTO admin_system (admin_login, admin_name, avatar_url, claimed_via, claimed_at)
-            VALUES (?, ?, ?, 'oauth', ?)
-          `).bind(ghUser.login, ghUser.name || ghUser.login, ghUser.avatar_url, new Date().toISOString()).run();
-          isAdmin = true;
-          isFirstAdmin = true;
-        } else if (currentAdmin.admin_login.toLowerCase() === ghUser.login.toLowerCase()) {
-          isAdmin = true;
-        }
-      } catch (dbErr) {
-        console.warn('D1 lookup error:', dbErr);
-        isAdmin = true;
-      }
-    } else {
-      isAdmin = true;
-      isFirstAdmin = true;
-    }
+    // 3. Resolve Admin vs Visitor Role using robust multi-layer lock
+    const { role, isAdmin, isFirstAdminClaim } = await resolveRole(env, ghUser, 'oauth', context.request.url);
 
     const userPayload = {
       id: ghUser.id,
@@ -136,16 +104,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       name: ghUser.name || ghUser.login,
       avatar_url: ghUser.avatar_url,
       html_url: ghUser.html_url,
-      role: isAdmin ? 'admin' : 'visitor',
+      role,
       isAdmin,
-      isFirstAdminClaim: isFirstAdmin,
+      isFirstAdminClaim,
     };
 
     return new Response(JSON.stringify({
       success: true,
       user: userPayload,
       token: accessToken,
-      isFirstAdminClaim: isFirstAdmin,
+      isFirstAdminClaim,
     }), {
       headers: {
         'Content-Type': 'application/json',

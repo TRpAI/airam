@@ -34,6 +34,32 @@ export function useAuth() {
         try {
           const data = JSON.parse(text);
           setOauthStatus(data);
+
+          // 核心一致性校验：若服务端已锁定管理员席位，校验当前客户端登录账号是否与管理员一致
+          // 若不一致，严格降级为访客角色 (visitor)，彻底防止跨浏览器/多账号越权
+          if (data && data.hasAdmin && data.adminUsername) {
+            setAuth((prev) => {
+              if (prev.isAuthenticated && prev.user) {
+                const isMatch = prev.user.login.toLowerCase() === data.adminUsername.toLowerCase();
+                if (prev.user.isAdmin !== isMatch || prev.user.role !== (isMatch ? 'admin' : 'visitor')) {
+                  const updated: AuthState = {
+                    ...prev,
+                    user: {
+                      ...prev.user,
+                      isAdmin: isMatch,
+                      role: isMatch ? 'admin' : 'visitor',
+                    },
+                  };
+                  try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                  } catch {}
+                  return updated;
+                }
+              }
+              return prev;
+            });
+          }
+
           return data as OAuthStatus;
         } catch {
           console.warn('Backend API returned non-JSON');
@@ -175,7 +201,6 @@ export function useAuth() {
 
       setCallbackProgress(100);
       setCallbackStep('success');
-      setCallbackStatusMsg('👑 授权成功！正在同步认证会话并进入中枢控制台...');
 
       const newAuth: AuthState = {
         isAuthenticated: true,
@@ -183,17 +208,64 @@ export function useAuth() {
         token: data.token,
       };
 
-      // Brief delay so user sees the 100% success checkmark
-      await new Promise((r) => setTimeout(r, 650));
-
-      setAuth(newAuth);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
+        localStorage.setItem('airam_oauth_notify', Date.now().toString());
       } catch {
         // ignore quota
       }
 
-      // Clean up URL parameters (remove ?code=...&state=...) and redirect to admin dashboard
+      // 检测当前是否处于弹出的授权窗口 (拥有 opener、窗口名称为 github_oauth_popup 或 state 包含 popup/admin_login)
+      const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const stateParam = searchParams?.get('state') || '';
+      const isPopup = typeof window !== 'undefined' && 
+        (Boolean(window.opener) || 
+         window.name === 'github_oauth_popup' || 
+         stateParam.includes('popup') || 
+         stateParam.includes('admin_login') ||
+         localStorage.getItem('airam_oauth_mode') === 'popup' ||
+         !stateParam.includes('direct'));
+
+      if (isPopup) {
+        setCallbackStatusMsg('✅ 授权成功！已同步凭据至原工作台窗口，正在关闭当前授权页...');
+
+        // 1. 通过 BroadcastChannel 向原工作台广播
+        try {
+          const bc = new BroadcastChannel('airam_oauth_auth_channel');
+          bc.postMessage({
+            type: 'OAUTH_AUTH_SUCCESS',
+            user: data.user,
+            token: data.token,
+            shouldRefresh: true
+          });
+          setTimeout(() => bc.close(), 1000);
+        } catch {}
+
+        // 2. 尝试向 window.opener postMessage
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage({
+              type: 'OAUTH_AUTH_SUCCESS',
+              user: data.user,
+              token: data.token,
+              shouldRefresh: true
+            }, '*');
+            try { window.opener.focus(); } catch {}
+          } catch {}
+        }
+
+        // 3. 授权完毕后立即关闭当前页！绝不留在弹出的授权页刷新到站点后台！
+        try { window.close(); } catch {}
+        setTimeout(() => { try { window.close(); } catch {} }, 250);
+        setTimeout(() => { try { window.close(); } catch {} }, 800);
+        return;
+      }
+
+      // 非弹窗模式 (单标签页跳转)：在当前窗口正常更新状态并进入管理后台
+      setCallbackStatusMsg('👑 授权成功！正在载入管理工作台...');
+      await new Promise((r) => setTimeout(r, 650));
+      setAuth(newAuth);
+
       const targetHash = window.location.hash && window.location.hash !== '#/' 
         ? window.location.hash 
         : '#/admin/dashboard';
@@ -211,6 +283,28 @@ export function useAuth() {
       clearTimeout(pTimer2);
 
       console.error('GitHub code exchange failed:', e);
+      const isPopup = typeof window !== 'undefined' && 
+        (Boolean(window.opener) || window.name === 'github_oauth_popup');
+
+      if (isPopup) {
+        try {
+          const bc = new BroadcastChannel('airam_oauth_auth_channel');
+          bc.postMessage({
+            type: 'OAUTH_AUTH_ERROR',
+            error: e.message || 'GitHub 授权凭据交换失败',
+          });
+          setTimeout(() => bc.close(), 1000);
+        } catch {}
+        if (window.opener && !window.opener.closed) {
+          try {
+            window.opener.postMessage({
+              type: 'OAUTH_AUTH_ERROR',
+              error: e.message || 'GitHub 授权凭据交换失败',
+            }, '*');
+          } catch {}
+        }
+      }
+
       if (e.message === 'TIMEOUT' || e.name === 'AbortError') {
         setCallbackStep('timeout');
         setCallbackTimedOut(true);
@@ -249,11 +343,52 @@ export function useAuth() {
     triggerExchange(code);
   }, [triggerExchange]);
 
-  // Set up OAuth popup postMessage listener (Only Cloudflare Pages and local dev)
+  // 全方位跨窗口监听：同时支持 BroadcastChannel、postMessage 和 localStorage 存储事件
+  // 当弹窗授权成功并关闭后，原页面立即无缝刷新认证状态并进入中枢控制台
   useEffect(() => {
+    const handleAuthSuccess = (userData: any, userToken?: string) => {
+      if (!userData) return;
+      const newAuth: AuthState = {
+        isAuthenticated: true,
+        user: userData,
+        token: userToken,
+      };
+      setAuth(newAuth);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
+      } catch {}
+      setLoading(false);
+      setIsExchangingCode(false);
+      setCallbackStep('idle');
+      refreshOAuthStatus();
+
+      // 授权成功后：关闭弹窗，刷新原页面！
+      if (typeof window !== 'undefined') {
+        window.location.hash = '#/admin/dashboard';
+        // 刷新原页面以激活全新管理员会话与工作台数据
+        setTimeout(() => {
+          window.location.reload();
+        }, 150);
+      }
+    };
+
+    // 1. BroadcastChannel 监听 (最稳定跨标签/跨弹窗通信)
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('airam_oauth_auth_channel');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+          handleAuthSuccess(event.data.user, event.data.token);
+        } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+          setAuthError(event.data.error || '授权失败');
+          setLoading(false);
+        }
+      };
+    } catch {}
+
+    // 2. postMessage 监听
     const handleMessage = (event: MessageEvent) => {
       const origin = event.origin;
-      // Strict origin check: only allow current origin, Cloudflare pages.dev, or local dev
       if (
         !origin.includes('pages.dev') &&
         !origin.includes('localhost') &&
@@ -264,35 +399,42 @@ export function useAuth() {
       }
 
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const { user, token } = event.data;
-        if (user) {
-          const newAuth: AuthState = {
-            isAuthenticated: true,
-            user,
-            token,
-          };
-          setAuth(newAuth);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(newAuth));
-          } catch {
-            // storage quota/private mode
-          }
-          setLoading(false);
-          refreshOAuthStatus();
-        }
+        handleAuthSuccess(event.data.user, event.data.token);
       } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
-        console.error('GitHub OAuth error:', event.data.error);
         setAuthError(event.data.error || '授权失败');
         setLoading(false);
       }
     };
 
+    // 3. Storage 事件监听 (同域名跨标签页/跨窗口持久同步)
+    const handleStorage = (event: StorageEvent) => {
+      if ((event.key === STORAGE_KEY || event.key === 'airam_oauth_notify') && event.newValue) {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.isAuthenticated && parsed?.user) {
+              handleAuthSuccess(parsed.user, parsed.token);
+            }
+          }
+        } catch {}
+      }
+    };
+
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [refreshOAuthStatus]);
 
   // Helper to build direct GitHub OAuth authorize URL synchronously
-  const getOAuthAuthorizeUrl = useCallback((): string => {
+  const getOAuthAuthorizeUrl = useCallback((mode: 'popup' | 'direct' = 'popup'): string => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const redirectUri = `${origin.replace(/\/$/, '')}/auth/callback`;
     const clientId = 
@@ -302,7 +444,12 @@ export function useAuth() {
 
     if (!clientId) return '';
 
-    const state = Math.random().toString(36).substring(2, 15);
+    try {
+      localStorage.setItem('airam_oauth_mode', mode);
+    } catch {}
+
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const state = `${mode}_admin_login_${Date.now()}_${randomStr}`;
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -317,7 +464,8 @@ export function useAuth() {
   const loginWithOAuth = async (forceDirectRedirect = false): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     try {
-      const authUrl = getOAuthAuthorizeUrl();
+      const mode = forceDirectRedirect ? 'direct' : 'popup';
+      const authUrl = getOAuthAuthorizeUrl(mode);
 
       if (!authUrl) {
         setLoading(false);
@@ -355,6 +503,32 @@ export function useAuth() {
         console.warn('Popup window could not open, falling back to direct navigation for GitHub authorization.');
         window.location.href = authUrl;
         return { success: true };
+      }
+
+      // 3. 实时轮询弹窗状态：当弹窗授权成功自动关闭后，原页面立即刷新并同步会话进入中枢
+      if (authWindow) {
+        const checkTimer = setInterval(() => {
+          if (authWindow.closed) {
+            clearInterval(checkTimer);
+            setLoading(false);
+            try {
+              const saved = localStorage.getItem(STORAGE_KEY);
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed?.isAuthenticated && parsed?.user) {
+                  setAuth(parsed);
+                  refreshOAuthStatus();
+                  if (typeof window !== 'undefined') {
+                    window.location.hash = '#/admin/dashboard';
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 150);
+                  }
+                }
+              }
+            } catch {}
+          }
+        }, 350);
       }
 
       // Popup successfully opened

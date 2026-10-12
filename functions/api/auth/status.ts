@@ -1,3 +1,5 @@
+import { getAdminRecord } from '../../_admin';
+
 interface Env {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
@@ -33,35 +35,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   let adminUsername: string | null = null;
   let adminUser: any = null;
 
-  if (env.DB) {
-    try {
-      const res: any = await env.DB.prepare('SELECT * FROM admin_system LIMIT 1').first();
-      if (res && res.admin_login) {
-        hasAdmin = true;
-        adminUsername = res.admin_login;
-        adminUser = {
-          login: res.admin_login,
-          name: res.admin_name || res.admin_login,
-          avatar_url: res.avatar_url || `https://github.com/${res.admin_login}.png`,
-          claimedAt: res.claimed_at,
-          claimedVia: res.claimed_via || 'oauth'
-        };
-      }
-    } catch {
-      // Table may not exist yet
+  try {
+    const adminRecord = await getAdminRecord(env, context.request.url);
+    if (adminRecord && adminRecord.login) {
+      hasAdmin = true;
+      adminUsername = adminRecord.login;
+      adminUser = adminRecord;
     }
-  }
-
-  if (!hasAdmin && env.ADMIN_USER) {
-    hasAdmin = true;
-    adminUsername = env.ADMIN_USER;
-    adminUser = {
-      login: env.ADMIN_USER,
-      name: env.ADMIN_USER,
-      avatar_url: `https://github.com/${env.ADMIN_USER}.png`,
-      claimedAt: new Date().toISOString(),
-      claimedVia: 'env'
-    };
+  } catch (err) {
+    console.warn('Failed to query admin record in status.ts:', err);
   }
 
   return new Response(JSON.stringify({
