@@ -27,6 +27,8 @@ interface PublicShowcaseProps {
   projects: Project[];
   repos: GitHubRepository[];
   approvedSubmissions?: RepoSubmission[];
+  commentCounts?: Record<string, number>;
+  onOpenComments?: (repoId: string, repoName: string, repoUrl?: string) => void;
   onGoToAdmin: () => void;
   onOpenSearch: () => void;
   onOpenSubmitRepo: () => void;
@@ -42,6 +44,8 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
   projects,
   repos,
   approvedSubmissions = [],
+  commentCounts = {},
+  onOpenComments,
   onGoToAdmin,
   onOpenSearch,
   onOpenSubmitRepo,
@@ -274,6 +278,14 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       )}
+                      <button
+                        onClick={() => onOpenComments?.(proj.id, proj.name, matchedRepo?.html_url || proj.homepage)}
+                        className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="查看与发表项目评论"
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        <span>讨论 ({commentCounts[proj.id.toLowerCase()] || 0})</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -369,6 +381,14 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
                           {sub.language}
                         </span>
                       )}
+                      <button
+                        onClick={() => onOpenComments?.(sub.name || sub.full_name, sub.full_name, sub.repo_url)}
+                        className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="查看与发表项目评论"
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        <span>讨论 ({commentCounts[(sub.name || sub.full_name).toLowerCase()] || 0})</span>
+                      </button>
                       <a
                         href={sub.repo_url}
                         target="_blank"

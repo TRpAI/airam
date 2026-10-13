@@ -362,10 +362,11 @@ export function useAuth() {
       setCallbackStep('idle');
       refreshOAuthStatus();
 
-      // 授权成功后：关闭弹窗，刷新原页面！
+      // 授权成功后：关闭弹窗，根据角色导航并刷新原页面！
       if (typeof window !== 'undefined') {
-        window.location.hash = '#/admin/dashboard';
-        // 刷新原页面以激活全新管理员会话与工作台数据
+        const targetHash = userData.isAdmin ? '#/admin/dashboard' : '#/user/dashboard';
+        window.location.hash = targetHash;
+        // 刷新原页面以激活全新管理员/访客会话与工作台数据
         setTimeout(() => {
           window.location.reload();
         }, 150);
@@ -519,7 +520,8 @@ export function useAuth() {
                   setAuth(parsed);
                   refreshOAuthStatus();
                   if (typeof window !== 'undefined') {
-                    window.location.hash = '#/admin/dashboard';
+                    const targetHash = parsed.user.isAdmin ? '#/admin/dashboard' : '#/user/dashboard';
+                    window.location.hash = targetHash;
                     setTimeout(() => {
                       window.location.reload();
                     }, 150);

@@ -247,7 +247,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                   </div>
                   <div className="flex items-center gap-2 text-zinc-400">
                     <div className="h-3.5 w-3.5 rounded-full border border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-[9px]">3</div>
-                    <span>③ 校验所有者权限并激活最高管理员席位</span>
+                    <span>③ 识别权限边界并激活对应角色工作台</span>
                   </div>
                 </div>
 
@@ -458,30 +458,30 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             </div>
           </div>
 
-          {/* First Admin Claim Banner */}
-          {!hasRegisteredAdmin ? (
-            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20 text-xs font-mono space-y-1.5 animate-in fade-in">
-              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-semibold">
-                <Crown className="h-4 w-4 text-emerald-500 shrink-0" />
-                <span>首位管理员席位开放中</span>
-              </div>
-              <p className="text-[11px] text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                当前系统尚未绑定所有者。<strong>第一个通过 GitHub 成功登入的用户将自动成为系统最高管理员 (Admin)</strong>，并永久享有中枢的管理写权限。
-              </p>
-            </div>
-          ) : (
+          {/* Multi-user Permission Boundary & Admin Info Banner */}
+          {hasRegisteredAdmin ? (
             <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 text-xs font-mono space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-500 flex items-center gap-1.5">
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>系统管理员已绑定</span>
+                  <span>Cloudflare 管理员名单</span>
                 </span>
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                   @{currentAdminUsername}
                 </span>
               </div>
               <p className="text-[11px] text-zinc-400 leading-relaxed">
-                管理员账号享有后台所有读写与部署权限；其他账号登入后为访客模式。
+                名单中用户登入享有中枢管理权限；其他 GitHub 账号自动进入访客开发者后台。
+              </p>
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl border border-sky-500/20 bg-sky-500/5 dark:bg-sky-950/20 text-xs font-mono space-y-1 text-zinc-600 dark:text-zinc-300">
+              <div className="flex items-center gap-1.5 font-semibold text-sky-600 dark:text-sky-400">
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                <span>多用户架构与权限边界</span>
+              </div>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                任何 GitHub 账号均可登入使用访客工作台（提交项目、发表评论）。若需中枢管理员权限，请在 Cloudflare Pages 设置 <code>ADMIN_USER</code> 变量。
               </p>
             </div>
           )}
@@ -545,7 +545,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                     <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
                   </svg>
                   <span>
-                    {!hasRegisteredAdmin ? '以 GitHub 授权并绑定为管理员' : '使用 GitHub 账号授权登录'}
+                    使用 GitHub 账号授权登录 (访客 / 管理员)
                   </span>
                 </>
               )}

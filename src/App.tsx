@@ -44,6 +44,9 @@ import {
 import { 
   AdminSettingsView 
 } from './components/AdminSettingsView';
+import { VisitorDashboard } from './components/VisitorDashboard';
+import { RepoCommentsModal } from './components/RepoCommentsModal';
+import { useComments } from './hooks/useComments';
 import { useSubmissions } from './hooks/useSubmissions';
 
 import { 
@@ -66,7 +69,9 @@ import {
   GitBranch, 
   BookOpen,
   Database,
-  Sliders
+  Sliders,
+  ShieldAlert,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function App() {
@@ -176,6 +181,21 @@ export default function App() {
     reviewSubmission,
     deleteSubmission,
   } = useSubmissions(Boolean(user?.isAdmin), user?.login);
+
+  // 跨项目评论与讨论系统状态
+  const [selectedCommentRepo, setSelectedCommentRepo] = useState<{
+    repoId: string;
+    repoName: string;
+    repoUrl?: string;
+  } | null>(null);
+
+  const {
+    comments: activeRepoComments,
+    allComments,
+    commentCountsByRepo,
+    addComment,
+    deleteComment,
+  } = useComments(selectedCommentRepo?.repoId);
 
   // 联动跳转与知识条目状态（刷新自动保留当前选中的笔记）
   const [internalKnowledgeId, setInternalKnowledgeId] = useState<string>(() => {
@@ -385,7 +405,9 @@ export default function App() {
                 projects={projects}
                 repos={repos}
                 approvedSubmissions={submissions.filter((s) => s.status === 'approved')}
-                onGoToAdmin={() => setViewMode('admin')}
+                commentCounts={commentCountsByRepo}
+                onOpenComments={(repoId, repoName, repoUrl) => setSelectedCommentRepo({ repoId, repoName, repoUrl })}
+                onGoToAdmin={() => setViewMode(user?.isAdmin ? 'admin' : user ? 'user' : 'admin')}
                 onOpenSearch={() => setIsSearchOpen(true)}
                 onOpenSubmitRepo={() => setIsSubmitModalOpen(true)}
                 user={user}
@@ -397,32 +419,108 @@ export default function App() {
             )}
 
             {/* ========================================================================= */}
-            {/* 2. 后台管理中枢 (Admin Console)                                            */}
+            {/* 2. 访客专属开发者工作台 (Visitor Dashboard)                                  */}
+            {/* ========================================================================= */}
+            {viewMode === 'user' && (
+              <>
+                {!isAuthenticated || !user ? (
+                  <AdminLogin
+                    onLoginOAuth={loginWithOAuth}
+                    onLoginDemo={loginWithDemo}
+                    loading={authLoading}
+                    oauthStatus={oauthStatus}
+                    onReturnToPublic={() => setViewMode('public')}
+                    authError={authError}
+                    isExchangingCode={isExchangingCode}
+                    callbackStep={callbackStep}
+                    callbackProgress={callbackProgress}
+                    callbackTimedOut={callbackTimedOut}
+                    callbackStatusMsg={callbackStatusMsg}
+                    onRetryCallback={retryCallbackExchange}
+                    onCancelCallback={cancelCallbackAndRedirect}
+                  />
+                ) : (
+                  <VisitorDashboard
+                    user={user}
+                    submissions={submissions}
+                    comments={allComments}
+                    onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
+                    onOpenRepoComments={(repoId, repoName, repoUrl) =>
+                      setSelectedCommentRepo({ repoId, repoName, repoUrl })
+                    }
+                    onDeleteComment={async (id) => {
+                      return await deleteComment(id, user.login);
+                    }}
+                    onSwitchToPublic={() => setViewMode('public')}
+                    onLogout={logout}
+                  />
+                )}
+              </>
+            )}
+
+            {/* ========================================================================= */}
+            {/* 3. 后台管理中枢 (Admin Console - 仅 ADMIN_USER 可访问)                       */}
             {/* ========================================================================= */}
             {viewMode === 'admin' && (
-          <>
-            {/* If not authenticated with GitHub account, show Login Gate */}
-            {!isAuthenticated ? (
-              <AdminLogin
-                onLoginOAuth={loginWithOAuth}
-                onLoginDemo={loginWithDemo}
-                loading={authLoading}
-                oauthStatus={oauthStatus}
-                onReturnToPublic={() => setViewMode('public')}
-                authError={authError}
-                isExchangingCode={isExchangingCode}
-                callbackStep={callbackStep}
-                callbackProgress={callbackProgress}
-                callbackTimedOut={callbackTimedOut}
-                callbackStatusMsg={callbackStatusMsg}
-                onRetryCallback={retryCallbackExchange}
-                onCancelCallback={cancelCallbackAndRedirect}
-              />
-            ) : (
-              <div className="space-y-6">
-                
-                {/* 1. 研发知识中枢核心卡片 (无右上角多余功能按钮，纯净简洁) */}
-                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 sm:p-6 shadow-xs">
+              <>
+                {/* If not authenticated with GitHub account, show Login Gate */}
+                {!isAuthenticated || !user ? (
+                  <AdminLogin
+                    onLoginOAuth={loginWithOAuth}
+                    onLoginDemo={loginWithDemo}
+                    loading={authLoading}
+                    oauthStatus={oauthStatus}
+                    onReturnToPublic={() => setViewMode('public')}
+                    authError={authError}
+                    isExchangingCode={isExchangingCode}
+                    callbackStep={callbackStep}
+                    callbackProgress={callbackProgress}
+                    callbackTimedOut={callbackTimedOut}
+                    callbackStatusMsg={callbackStatusMsg}
+                    onRetryCallback={retryCallbackExchange}
+                    onCancelCallback={cancelCallbackAndRedirect}
+                  />
+                ) : !user.isAdmin ? (
+                  /* 权限边界：若已登录但非 ADMIN_USER 变量指定用户，显示友好导流界面 */
+                  <div className="max-w-xl mx-auto my-12 p-6 sm:p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm text-center space-y-4 font-mono">
+                    <div className="h-12 w-12 mx-auto rounded-2xl bg-sky-500/10 text-sky-500 flex items-center justify-center border border-sky-500/20">
+                      <ShieldAlert className="h-6 w-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <h2 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                        当前账号为访客开发者身份
+                      </h2>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                        系统已启用权限边界保护：只有在 Cloudflare Pages 环境变量中配置了 <code>ADMIN_USER</code> 的 GitHub 账号才享有系统管理中枢权限。
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400 text-left space-y-1">
+                      <div className="font-semibold text-zinc-900 dark:text-zinc-200">💡 站点所有者配置提示:</div>
+                      <p className="text-[11px] leading-relaxed">
+                        若您是该站点的管理者，请前往 Cloudflare Pages 设置 -&gt; 环境变量，添加 <code>ADMIN_USER={user.login}</code> 并执行 Redeploy 重新部署。
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                      <button
+                        onClick={() => setViewMode('user')}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs cursor-pointer shadow-xs transition-colors"
+                      >
+                        进入我的访客工作台 (查看提交与评论)
+                      </button>
+                      <button
+                        onClick={() => setViewMode('public')}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs cursor-pointer transition-colors"
+                      >
+                        返回公开展示
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* 1. 研发知识中枢核心卡片 (无右上角多余功能按钮，纯净简洁) */}
+                    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 sm:p-6 shadow-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
@@ -605,10 +703,9 @@ export default function App() {
             )}
           </>
         )}
-          </>
-        )}
-
-      </main>
+      </>
+    )}
+  </main>
 
       {/* Global Interactive Search Modal (FTS5 Search) */}
       <SearchModal
@@ -651,6 +748,37 @@ export default function App() {
           fetchSubmissions();
         }}
       />
+
+      {/* Repository Comments & Discussion Modal */}
+      {selectedCommentRepo && (
+        <RepoCommentsModal
+          isOpen={Boolean(selectedCommentRepo)}
+          onClose={() => setSelectedCommentRepo(null)}
+          repoId={selectedCommentRepo.repoId}
+          repoName={selectedCommentRepo.repoName}
+          repoUrl={selectedCommentRepo.repoUrl}
+          comments={activeRepoComments}
+          user={user}
+          onAddComment={async (content) => {
+            return await addComment({
+              repo_id: selectedCommentRepo.repoId,
+              repo_name: selectedCommentRepo.repoName,
+              content,
+              author_login: user?.login || '',
+              author_name: user?.name || user?.login || '',
+              author_avatar: user?.avatar_url || '',
+              author_role: user?.isAdmin ? 'admin' : 'visitor',
+            });
+          }}
+          onDeleteComment={async (id) => {
+            return await deleteComment(id, user?.login);
+          }}
+          onRequireLogin={() => {
+            setSelectedCommentRepo(null);
+            setViewMode('admin');
+          }}
+        />
+      )}
 
       {/* Global Keyboard Shortcut for Ctrl+K */}
       <GlobalKeyboardListener onOpenSearch={() => setIsSearchOpen(true)} />
