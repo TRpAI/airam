@@ -9,7 +9,7 @@ import {
   ToggleRight,
   Info
 } from 'lucide-react';
-import { KnowledgeItem, Project, GitHubRepository, SyncLog } from '../types';
+import { KnowledgeItem, Project, GitHubRepository, SyncLog, RepoSubmission, RepoComment } from '../types';
 import { exportToJSON, exportToD1Sql, exportToMarkdownBundle } from '../services/exportService';
 import { MIGRATION_SQL } from '../data/migrationSql';
 import { Copy } from 'lucide-react';
@@ -19,6 +19,8 @@ interface BackupViewProps {
   projects: Project[];
   repos: GitHubRepository[];
   syncLogs: SyncLog[];
+  submissions?: RepoSubmission[];
+  comments?: RepoComment[];
   r2Enabled: boolean;
   setR2Enabled: (enabled: boolean) => void;
 }
@@ -28,6 +30,8 @@ export const BackupView: React.FC<BackupViewProps> = ({
   projects,
   repos,
   syncLogs,
+  submissions = [],
+  comments = [],
   r2Enabled,
   setR2Enabled,
 }) => {
@@ -39,12 +43,12 @@ export const BackupView: React.FC<BackupViewProps> = ({
   };
 
   const handleDownloadSql = () => {
-    exportToD1Sql(knowledge, projects, repos);
+    exportToD1Sql(knowledge, projects, repos, submissions, comments);
     triggerSuccess('D1 标准 SQL 导出脚本已生成并开始下载');
   };
 
   const handleDownloadJson = () => {
-    exportToJSON(knowledge, projects, repos, syncLogs);
+    exportToJSON(knowledge, projects, repos, syncLogs, submissions, comments);
     triggerSuccess('JSON 完整结构化备份包已生成并开始下载');
   };
 

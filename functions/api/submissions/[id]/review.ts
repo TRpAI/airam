@@ -1,4 +1,4 @@
-import { isUserAdmin } from '../../../_admin';
+import { updateSubmissionStatus } from '../../../_submissions';
 
 export const onRequestPost: PagesFunction = async (context) => {
   try {
@@ -10,33 +10,22 @@ export const onRequestPost: PagesFunction = async (context) => {
       return new Response(JSON.stringify({ error: '无效的审核操作' }), { status: 400 });
     }
 
-    const isAdmin = isUserAdmin(context.env as any, admin_login);
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: '无权执行审核操作，需要管理员权限' }), { status: 403 });
-    }
+    const res = await updateSubmissionStatus(
+      context.env,
+      id,
+      action,
+      review_comment,
+      admin_login
+    );
 
-    const newStatus = action === 'approve' ? 'approved' : 'rejected';
-    const reviewedAt = new Date().toISOString();
-    const finalComment = review_comment ? review_comment.trim() : (action === 'approve' ? '审核通过，准予展示' : '未达到展示标准');
-
-    const db = (context.env as any).DB || (context.env as any).AIRAM_DB;
-    if (db && typeof db.prepare === 'function') {
-      try {
-        await db.prepare(`
-          UPDATE repo_submissions
-          SET status = ?, review_comment = ?, reviewed_at = ?, reviewed_by = ?
-          WHERE id = ?
-        `).bind(newStatus, finalComment, reviewedAt, admin_login, id).run();
-      } catch (e) {
-        console.warn('D1 update review failed:', e);
-      }
+    if (!res.success) {
+      return new Response(JSON.stringify({ error: res.error || '审核失败' }), { status: 403 });
     }
 
     return new Response(JSON.stringify({
       success: true,
-      id,
-      status: newStatus,
-      review_comment: finalComment,
+      submission: res.submission,
+      message: action === 'approve' ? '审核已批准，准予展示' : '已驳回该仓库提交',
     }), {
       headers: {
         'Content-Type': 'application/json',

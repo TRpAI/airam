@@ -184,15 +184,28 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-900/40">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+            <div className={`h-8 w-8 rounded-lg flex items-center justify-center border ${
+              user?.isAdmin
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                : 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30'
+            }`}>
               <GitBranch className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
-                推荐开源仓库
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
+                  {user?.isAdmin ? '管理员发布开源仓库' : '推荐开源仓库'}
+                </h2>
+                {user?.isAdmin && (
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    免审核直接展示
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] font-mono text-zinc-500">
-                访客提交仓库 · 管理员审核批准后在前台精选展示
+                {user?.isAdmin 
+                  ? '管理员提交的仓库将跳过审核阶段，即时收录并直接在前台首页展示'
+                  : '访客提交仓库 · 管理员审核批准后在前台精选展示'}
               </p>
             </div>
           </div>
@@ -215,13 +228,15 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
               </div>
               <div className="space-y-1">
                 <h3 className="text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
-                  仓库提交成功！
+                  {user?.isAdmin ? '精选仓库已直接发布！' : '仓库提交成功！'}
                 </h3>
                 <p className="text-xs text-zinc-600 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
                   <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-200">
                     {successSubmission.full_name}
-                  </span> 已进入待审核队列。
-                  管理员审核批准后，将在前台精选栏目永久展示并署名您的推荐贡献。
+                  </span>
+                  {user?.isAdmin
+                    ? ' 已免审核直接批准生效，当前已在前台首页精选区域展示。'
+                    : ' 已成功进入待审核队列。经管理员审核批准后，将在前台精选栏目永久展示并署名您的推荐贡献。'}
                 </p>
               </div>
 
@@ -418,7 +433,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
                   ) : (
                     <>
                       <Send className="h-3.5 w-3.5" />
-                      <span>提交审核</span>
+                      <span>{user?.isAdmin ? '直接发布精选' : '提交审核'}</span>
                     </>
                   )}
                 </button>

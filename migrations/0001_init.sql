@@ -124,3 +124,46 @@ CREATE TRIGGER IF NOT EXISTS trg_knowledge_au AFTER UPDATE ON knowledge BEGIN
   INSERT INTO knowledge_fts (id, title, summary, content)
   VALUES (new.id, new.title, new.summary, new.content);
 END;
+
+-- 10. 访客开源仓库推荐与审核表 (Submissions)
+CREATE TABLE IF NOT EXISTS repo_submissions (
+  id TEXT PRIMARY KEY,
+  repo_url TEXT NOT NULL,
+  owner TEXT NOT NULL,
+  name TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  description TEXT,
+  stars INTEGER NOT NULL DEFAULT 0,
+  language TEXT,
+  homepage TEXT,
+  submitter_login TEXT NOT NULL,
+  submitter_avatar TEXT,
+  submitter_note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, rejected
+  review_comment TEXT,
+  created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+  reviewed_at TEXT,
+  reviewed_by TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_repo_submissions_status ON repo_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_repo_submissions_submitter ON repo_submissions(submitter_login);
+CREATE INDEX IF NOT EXISTS idx_repo_submissions_created ON repo_submissions(created_at DESC);
+
+-- 11. 开源项目讨论与社区评论表 (Comments)
+CREATE TABLE IF NOT EXISTS repo_comments (
+  id TEXT PRIMARY KEY,
+  repo_id TEXT NOT NULL,
+  repo_name TEXT NOT NULL,
+  author_login TEXT NOT NULL,
+  author_name TEXT NOT NULL,
+  author_avatar TEXT NOT NULL,
+  author_role TEXT NOT NULL DEFAULT 'visitor', -- admin, visitor
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_repo_comments_repo_id ON repo_comments(repo_id);
+CREATE INDEX IF NOT EXISTS idx_repo_comments_author ON repo_comments(author_login);
+CREATE INDEX IF NOT EXISTS idx_repo_comments_created ON repo_comments(created_at DESC);

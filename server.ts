@@ -349,6 +349,19 @@ async function startServer() {
     const origin = (req.query.origin as string) || process.env.APP_URL || '';
     const redirectUri = origin ? `${origin.replace(/\/$/, '')}/auth/callback` : `${req.protocol}://${req.get('host')}/auth/callback`;
 
+    const adminList = getAdminUserList();
+    const hasAdmin = adminList.length > 0;
+    const adminUsername = adminList[0] || null;
+    const adminUser = hasAdmin
+      ? {
+          login: adminUsername,
+          name: adminUsername,
+          avatar_url: `https://github.com/${adminUsername}.png`,
+          claimedVia: 'env',
+          claimedAt: new Date().toISOString(),
+        }
+      : null;
+
     res.json({
       configured: Boolean(clientId && clientSecret),
       hasClientId: Boolean(clientId),
@@ -356,9 +369,10 @@ async function startServer() {
       hasToken: Boolean(process.env.GITHUB_TOKEN),
       clientId: clientId || null,
       redirectUri,
-      hasAdmin: Boolean(adminSystemCache.admin),
-      adminUsername: adminSystemCache.admin ? adminSystemCache.admin.login : null,
-      adminUser: adminSystemCache.admin,
+      hasAdmin,
+      adminUsername,
+      adminUser,
+      adminUsers: adminList,
       environment: process.env.NODE_ENV || 'development',
     });
   });
@@ -368,6 +382,10 @@ async function startServer() {
     const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID || '';
     const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET || '';
     const token = process.env.GITHUB_TOKEN || '';
+    const adminList = getAdminUserList();
+    const hasAdmin = adminList.length > 0;
+    const adminUsername = adminList[0] || null;
+
     res.json({
       environment: process.env.NODE_ENV || 'development',
       hasClientId: Boolean(clientId),
@@ -375,8 +393,9 @@ async function startServer() {
       hasGithubToken: Boolean(token),
       clientIdMasked: clientId ? `${clientId.substring(0, 6)}...` : null,
       isProduction: process.env.NODE_ENV === 'production',
-      hasAdmin: Boolean(adminSystemCache.admin),
-      adminUsername: adminSystemCache.admin ? adminSystemCache.admin.login : null,
+      hasAdmin,
+      adminUsername,
+      adminUsers: adminList,
     });
   });
 
@@ -899,20 +918,23 @@ async function startServer() {
     });
   });
 
-  // 6.3 Submit a Repository for Showcase (Enforces rate limit: 3 per 10min, 20s cooldown)
+  // 6.3 Submit a Repository for Showcase (Enforces rate limit for visitors, admin exempt and auto-approved)
   app.post('/api/submissions', async (req, res) => {
     const { repo_url, submitter_login, submitter_avatar, submitter_note } = req.body;
     const rawSubmitter = (submitter_login || 'visitor').trim();
+    const isSubmitterAdmin = isUserAdmin(rawSubmitter);
     const clientKey = getClientIdentifier(req, rawSubmitter);
 
-    // Enforce submission rate limiting: max 3 per 10 mins (600,000ms), min 20s between submissions
-    const rateCheck = checkRateLimit(submissionRateLimitStore, clientKey, 3, 600000, 20000);
-    if (!rateCheck.allowed) {
-      return res.status(429).json({
-        error: `仓库提交过于频繁，为防止恶意滥用，请等待 ${rateCheck.retryAfter} 秒后再提交。`,
-        retryAfter: rateCheck.retryAfter,
-        rateLimited: true,
-      });
+    // Enforce submission rate limiting for regular visitors (admin exempt)
+    if (!isSubmitterAdmin) {
+      const rateCheck = checkRateLimit(submissionRateLimitStore, clientKey, 3, 600000, 20000);
+      if (!rateCheck.allowed) {
+        return res.status(429).json({
+          error: `仓库提交过于频繁，为防止恶意滥用，请等待 ${rateCheck.retryAfter} 秒后再提交。`,
+          retryAfter: rateCheck.retryAfter,
+          rateLimited: true,
+        });
+      }
     }
 
     if (!repo_url || typeof repo_url !== 'string') {
@@ -935,14 +957,27 @@ async function startServer() {
     );
 
     if (existingSubmission) {
-      if (existingSubmission.status === 'pending') {
-        return res.status(409).json({ 
-          error: `仓库 "${full_name}" 目前已在审核队列中，请等待管理员审核，无需重复提交。` 
-        });
-      }
       if (existingSubmission.status === 'approved') {
         return res.status(409).json({ 
-          error: `仓库 "${full_name}" 已经通过管理员审核，并已在前台精选展示中！` 
+          error: `仓库 "${full_name}" 已经通过审核，并已在前台精选展示中！` 
+        });
+      }
+      if (existingSubmission.status === 'pending') {
+        if (isSubmitterAdmin) {
+          // 管理员提交已存在的待审核记录，直接免审核就地通过展示
+          existingSubmission.status = 'approved';
+          existingSubmission.reviewed_at = new Date().toISOString();
+          existingSubmission.reviewed_by = rawSubmitter;
+          existingSubmission.review_comment = '管理员直接发布（免审核展示）';
+          saveSubmissions(submissionsCache);
+          return res.json({
+            success: true,
+            submission: existingSubmission,
+            message: `仓库 ${full_name} 经管理员直接确认为精选项目，已直接批准在前台展示！`,
+          });
+        }
+        return res.status(409).json({ 
+          error: `仓库 "${full_name}" 目前已在待审核队列中，请等待管理员审核，无需重复提交。` 
         });
       }
     }
@@ -990,14 +1025,17 @@ async function startServer() {
       owner,
       name,
       full_name,
-      description: repoMetadata.description || (submitter_note ? submitter_note.slice(0, 120) : '访客推荐开源项目'),
+      description: repoMetadata.description || (submitter_note ? submitter_note.slice(0, 120) : '精选开源项目'),
       stars: repoMetadata.stars,
       language: repoMetadata.language,
       homepage: repoMetadata.homepage || undefined,
       submitter_login: rawSubmitter,
       submitter_avatar: submitter_avatar || `https://github.com/${rawSubmitter}.png`,
       submitter_note: submitter_note ? submitter_note.trim() : undefined,
-      status: 'pending',
+      status: isSubmitterAdmin ? 'approved' : 'pending',
+      reviewed_at: isSubmitterAdmin ? new Date().toISOString() : undefined,
+      reviewed_by: isSubmitterAdmin ? rawSubmitter : undefined,
+      review_comment: isSubmitterAdmin ? '管理员直接发布（免审核展示）' : undefined,
       created_at: new Date().toISOString(),
     };
 
@@ -1007,8 +1045,9 @@ async function startServer() {
     res.json({
       success: true,
       submission: newSubmission,
-      message: `仓库 ${full_name} 提交成功！已进入待审核队列，经管理员批准后将正式在前台精选展示。`,
-      remaining: rateCheck.remaining,
+      message: isSubmitterAdmin
+        ? `管理员提交仓库成功！已免审核直接批准并在前台精选展示。`
+        : `仓库 ${full_name} 提交成功！已进入待审核队列，经管理员批准后将正式在前台精选展示。`,
     });
   });
 
@@ -1022,14 +1061,9 @@ async function startServer() {
     }
 
     // Role check: Must be system administrator
-    const currentAdmin = adminSystemCache.admin;
-    if (!currentAdmin) {
-      return res.status(403).json({ error: '系统尚未产生首位管理员，无法进行审核' });
-    }
-
-    if (!admin_login || admin_login.toLowerCase() !== currentAdmin.login.toLowerCase()) {
+    if (!admin_login || !isUserAdmin(admin_login)) {
       return res.status(403).json({ 
-        error: `只有系统管理员 (@${currentAdmin.login}) 有权批准或驳回仓库提交。` 
+        error: `只有系统管理员（在 ADMIN_USER 变量中配置的 GitHub 用户）有权批准或驳回仓库提交。` 
       });
     }
 
@@ -1041,7 +1075,7 @@ async function startServer() {
     const target = submissionsCache[subIndex];
     target.status = action === 'approve' ? 'approved' : 'rejected';
     target.reviewed_at = new Date().toISOString();
-    target.reviewed_by = currentAdmin.login;
+    target.reviewed_by = admin_login;
     target.review_comment = review_comment ? review_comment.trim() : (action === 'approve' ? '审核通过，准予展示' : '未达到展示标准');
 
     submissionsCache[subIndex] = target;
@@ -1059,8 +1093,7 @@ async function startServer() {
     const { id } = req.params;
     const admin_login = (req.query.admin_login as string) || (req.body?.admin_login as string);
 
-    const currentAdmin = adminSystemCache.admin;
-    if (!currentAdmin || !admin_login || admin_login.toLowerCase() !== currentAdmin.login.toLowerCase()) {
+    if (!admin_login || !isUserAdmin(admin_login)) {
       return res.status(403).json({ error: '只有系统管理员有权删除提交记录' });
     }
 

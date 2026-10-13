@@ -1,13 +1,15 @@
-import { KnowledgeItem, Project, GitHubRepository, SyncLog } from '../types';
+import { KnowledgeItem, Project, GitHubRepository, SyncLog, RepoSubmission, RepoComment } from '../types';
 
 export function exportToJSON(
   knowledge: KnowledgeItem[],
   projects: Project[],
   repos: GitHubRepository[],
-  logs: SyncLog[]
+  logs: SyncLog[],
+  submissions?: RepoSubmission[],
+  comments?: RepoComment[]
 ): void {
   const exportData = {
-    version: '1.0.0',
+    version: '1.1.0',
     exported_at: new Date().toISOString(),
     system: 'DevKnowledge-OS-Cloudflare',
     stats: {
@@ -15,12 +17,16 @@ export function exportToJSON(
       projects_count: projects.length,
       repositories_count: repos.length,
       logs_count: logs.length,
+      submissions_count: submissions?.length || 0,
+      comments_count: comments?.length || 0,
     },
     data: {
       knowledge,
       projects,
       github_repositories: repos,
       sync_logs: logs,
+      repo_submissions: submissions || [],
+      repo_comments: comments || [],
     },
   };
 
@@ -31,10 +37,12 @@ export function exportToJSON(
 export function exportToD1Sql(
   knowledge: KnowledgeItem[],
   projects: Project[],
-  repos: GitHubRepository[]
+  repos: GitHubRepository[],
+  submissions?: RepoSubmission[],
+  comments?: RepoComment[]
 ): void {
   let sql = `-- ==============================================================
--- DevKnowledge OS - Cloudflare D1 数据库备份导脚本
+-- DevKnowledge OS - Cloudflare D1 数据库备份导出脚本
 -- 生成时间: ${new Date().toISOString()}
 -- ==============================================================\n\n`;
 
@@ -53,6 +61,20 @@ export function exportToD1Sql(
   sql += `\n-- 3. 项目数据\n`;
   for (const p of projects) {
     sql += `INSERT OR REPLACE INTO projects (id, name, description, status, one_liner, tech_stack, features, rating, my_notes, created_at, updated_at) VALUES ('${p.id}', '${escapeSql(p.name)}', '${escapeSql(p.description)}', '${p.status}', '${escapeSql(p.one_liner)}', '${escapeSql(JSON.stringify(p.tech_stack))}', '${escapeSql(JSON.stringify(p.features))}', ${p.rating}, '${escapeSql(p.my_notes)}', '${p.created_at}', '${p.updated_at}');\n`;
+  }
+
+  if (submissions && submissions.length > 0) {
+    sql += `\n-- 4. 仓库推荐提交数据\n`;
+    for (const s of submissions) {
+      sql += `INSERT OR REPLACE INTO repo_submissions (id, repo_url, owner, name, full_name, description, stars, language, homepage, submitter_login, submitter_avatar, submitter_note, status, review_comment, created_at, reviewed_at, reviewed_by) VALUES ('${s.id}', '${escapeSql(s.repo_url)}', '${escapeSql(s.owner)}', '${escapeSql(s.name)}', '${escapeSql(s.full_name)}', '${escapeSql(s.description || '')}', ${s.stars || 0}, '${escapeSql(s.language || '')}', ${s.homepage ? `'${escapeSql(s.homepage)}'` : 'NULL'}, '${escapeSql(s.submitter_login)}', ${s.submitter_avatar ? `'${escapeSql(s.submitter_avatar)}'` : 'NULL'}, ${s.submitter_note ? `'${escapeSql(s.submitter_note)}'` : 'NULL'}, '${s.status}', ${s.review_comment ? `'${escapeSql(s.review_comment)}'` : 'NULL'}, '${s.created_at}', ${s.reviewed_at ? `'${s.reviewed_at}'` : 'NULL'}, ${s.reviewed_by ? `'${escapeSql(s.reviewed_by)}'` : 'NULL'});\n`;
+    }
+  }
+
+  if (comments && comments.length > 0) {
+    sql += `\n-- 5. 讨论评论数据\n`;
+    for (const c of comments) {
+      sql += `INSERT OR REPLACE INTO repo_comments (id, repo_id, repo_name, author_login, author_name, author_avatar, author_role, content, created_at) VALUES ('${c.id}', '${escapeSql(c.repo_id)}', '${escapeSql(c.repo_name)}', '${escapeSql(c.author_login)}', '${escapeSql(c.author_name)}', '${escapeSql(c.author_avatar)}', '${c.author_role}', '${escapeSql(c.content)}', '${c.created_at}');\n`;
+    }
   }
 
   const blob = new Blob([sql], { type: 'text/plain;charset=utf-8' });

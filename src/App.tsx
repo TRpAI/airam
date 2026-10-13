@@ -682,6 +682,8 @@ export default function App() {
                     projects={projects}
                     repos={repos}
                     syncLogs={syncLogs}
+                    submissions={submissions}
+                    comments={allComments}
                     r2Enabled={r2Enabled}
                     setR2Enabled={setR2Enabled}
                   />
