@@ -14,11 +14,13 @@ import {
   ShieldCheck,
   ShieldAlert,
   MessageSquare,
-  UserCheck
+  UserCheck,
+  BookOpen
 } from 'lucide-react';
 import { RepoSubmission, SubmissionStatus } from '../types';
 import { GitHubUser } from '../types/auth';
 import { SubmissionStats } from '../hooks/useSubmissions';
+import { RepoDetailModal } from './RepoDetailModal';
 
 interface AdminSubmissionsViewProps {
   submissions: RepoSubmission[];
@@ -46,6 +48,7 @@ export const AdminSubmissionsView: React.FC<AdminSubmissionsViewProps> = ({
   const [rejectReason, setRejectReason] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [selectedDetailRepo, setSelectedDetailRepo] = useState<RepoSubmission | null>(null);
 
   const isAdmin = Boolean(user?.isAdmin);
 
@@ -369,9 +372,18 @@ export const AdminSubmissionsView: React.FC<AdminSubmissionsViewProps> = ({
                     )}
 
                     <button
+                      onClick={() => setSelectedDetailRepo(item)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono rounded border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                      title="打开并阅读仓库 README 详细说明"
+                    >
+                      <BookOpen className="h-3 w-3 text-emerald-500" />
+                      <span>查阅 README</span>
+                    </button>
+
+                    <button
                       onClick={() => handleDelete(item.id)}
                       disabled={actionLoading === item.id}
-                      className="p-1.5 rounded text-zinc-400 hover:text-rose-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="p-1.5 rounded text-zinc-400 hover:text-rose-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                       title="彻底删除此记录"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -439,6 +451,13 @@ export const AdminSubmissionsView: React.FC<AdminSubmissionsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Repo Detail & README Modal */}
+      <RepoDetailModal
+        repo={selectedDetailRepo}
+        isOpen={Boolean(selectedDetailRepo)}
+        onClose={() => setSelectedDetailRepo(null)}
+      />
 
     </div>
   );

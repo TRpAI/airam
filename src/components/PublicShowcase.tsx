@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { KnowledgeItem, Project, GitHubRepository, RepoSubmission } from '../types';
 import { GitHubUser } from '../types/auth';
+import { RepoDetailModal } from './RepoDetailModal';
 
 interface PublicShowcaseProps {
   knowledge: KnowledgeItem[];
@@ -57,6 +58,7 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
 }) => {
   const [internalSection, setInternalSection] = useState<'all' | 'projects' | 'community' | 'knowledge'>('all');
   const [internalDocId, setInternalDocId] = useState<string | null>(null);
+  const [selectedRepoDetail, setSelectedRepoDetail] = useState<RepoSubmission | null>(null);
   const [copied, setCopied] = useState(false);
 
   const activeSection = activeSectionProp !== undefined ? activeSectionProp : internalSection;
@@ -326,13 +328,14 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
               {approvedSubmissions.map((sub) => (
                 <div
                   key={sub.id}
-                  className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 sm:p-5 flex flex-col justify-between hover:border-emerald-500/50 transition-colors shadow-xs"
+                  onClick={() => setSelectedRepoDetail(sub)}
+                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 sm:p-5 flex flex-col justify-between hover:border-emerald-500/60 hover:shadow-md transition-all shadow-xs cursor-pointer group"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100 truncate">
+                          <h3 className="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
                             {sub.full_name}
                           </h3>
                         </div>
@@ -341,10 +344,16 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
                         </p>
                       </div>
 
-                      <span className="flex items-center gap-1 text-xs font-mono text-amber-500 shrink-0">
-                        <Star className="h-3 w-3 fill-current" />
-                        <span>{sub.stars.toLocaleString()}</span>
-                      </span>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="flex items-center gap-1 text-xs font-mono text-amber-500">
+                          <Star className="h-3 w-3 fill-current" />
+                          <span>{sub.stars.toLocaleString()}</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                          <span>查看 README</span>
+                          <ArrowRight className="h-2.5 w-2.5" />
+                        </span>
+                      </div>
                     </div>
 
                     {/* Submitter Recommendation Note */}
@@ -362,19 +371,33 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
                       <img
                         src={sub.submitter_avatar || `https://github.com/${sub.submitter_login}.png`}
                         alt={sub.submitter_login}
-                        className="h-3.5 w-3.5 rounded-full border border-zinc-300 dark:border-zinc-700"
+                        className="h-3.5 w-3.5 rounded-full border border-zinc-300 dark:border-zinc-700 object-cover"
                       />
                       <span>由 @{sub.submitter_login} 推荐</span>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2">
                       {sub.language && (
                         <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px]">
                           {sub.language}
                         </span>
                       )}
                       <button
-                        onClick={() => onOpenComments?.(sub.name || sub.full_name, sub.full_name, sub.repo_url)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRepoDetail(sub);
+                        }}
+                        className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                        title="查看仓库详细介绍与官方 README 文档"
+                      >
+                        <BookOpen className="h-3 w-3 text-emerald-500" />
+                        <span>README</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenComments?.(sub.name || sub.full_name, sub.full_name, sub.repo_url);
+                        }}
                         className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
                         title="查看与发表项目评论"
                       >
@@ -385,10 +408,12 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
                         href={sub.repo_url}
                         target="_blank"
                         rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1"
+                        title="在新标签页中打开 GitHub"
                       >
                         <GitBranch className="h-3 w-3" />
-                        <span>查看仓库</span>
+                        <span>GitHub</span>
                         <ExternalLink className="h-2.5 w-2.5" />
                       </a>
                     </div>
@@ -495,6 +520,15 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
           </div>
         </div>
       )}
+
+      {/* 6. Repository Detail & README Modal */}
+      <RepoDetailModal
+        repo={selectedRepoDetail}
+        isOpen={Boolean(selectedRepoDetail)}
+        onClose={() => setSelectedRepoDetail(null)}
+        onOpenComments={onOpenComments}
+        commentCount={selectedRepoDetail ? (commentCounts[(selectedRepoDetail.name || selectedRepoDetail.full_name).toLowerCase()] || 0) : 0}
+      />
 
     </div>
   );

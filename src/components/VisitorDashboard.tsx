@@ -14,10 +14,12 @@ import {
   LogOut, 
   Layers,
   ArrowRight,
-  FolderGit2
+  FolderGit2,
+  BookOpen
 } from 'lucide-react';
 import { GitHubUser } from '../types/auth';
 import { RepoSubmission, RepoComment } from '../types';
+import { RepoDetailModal } from './RepoDetailModal';
 
 interface VisitorDashboardProps {
   user: GitHubUser;
@@ -44,6 +46,7 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<VisitorTab>('submissions');
   const [subFilter, setSubFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [selectedDetailRepo, setSelectedDetailRepo] = useState<RepoSubmission | null>(null);
 
   // Filter submissions by current user and filter tab
   const userSubmissions = submissions.filter(s => s.submitter_login.toLowerCase() === user.login.toLowerCase());
@@ -328,18 +331,28 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
                     </div>
                   )}
 
-                  {/* Footer Action: Discuss Repo */}
-                  <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between text-xs font-mono">
+                  {/* Footer Action: Details & Discuss Repo */}
+                  <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/60 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
                     <span className="text-[11px] text-zinc-400">
                       语言: {sub.language || '未知'}
                     </span>
-                    <button
-                      onClick={() => onOpenRepoComments(sub.name || sub.full_name, sub.full_name, sub.repo_url)}
-                      className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <MessageSquare className="h-3 w-3" />
-                      <span>查看或发表该项目评论</span>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedDetailRepo(sub)}
+                        className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        title="打开并查看该项目的完整 README 文档"
+                      >
+                        <BookOpen className="h-3 w-3" />
+                        <span>查阅 README 详情</span>
+                      </button>
+                      <button
+                        onClick={() => onOpenRepoComments(sub.name || sub.full_name, sub.full_name, sub.repo_url)}
+                        className="text-zinc-600 dark:text-zinc-400 hover:text-emerald-500 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        <span>评论交流</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -491,6 +504,14 @@ export const VisitorDashboard: React.FC<VisitorDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Repo Detail & README Modal */}
+      <RepoDetailModal
+        repo={selectedDetailRepo}
+        isOpen={Boolean(selectedDetailRepo)}
+        onClose={() => setSelectedDetailRepo(null)}
+        onOpenComments={onOpenRepoComments}
+      />
 
     </div>
   );

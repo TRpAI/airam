@@ -1221,6 +1221,78 @@ async function startServer() {
     });
   });
 
+  // 6.7 GitHub README proxy endpoint
+  app.get('/api/github/readme', async (req, res) => {
+    const owner = (req.query.owner as string) || '';
+    const repo = (req.query.repo as string) || '';
+    const fullNameParam = (req.query.full_name as string) || '';
+
+    let repoOwner = owner.trim();
+    let repoName = repo.trim();
+
+    if (!repoOwner && fullNameParam.includes('/')) {
+      const parts = fullNameParam.trim().split('/');
+      repoOwner = parts[0];
+      repoName = parts[1];
+    }
+
+    if (!repoOwner || !repoName) {
+      return res.status(400).json({ error: '缺少 owner 或 repo 参数' });
+    }
+
+    const headers: Record<string, string> = {
+      'User-Agent': 'AIram-DevHub',
+      'Accept': 'application/vnd.github.v3+json',
+    };
+    if (process.env.GITHUB_TOKEN) {
+      headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
+    }
+
+    // 1. Try official GitHub API
+    try {
+      const ghRes = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/readme`, { headers });
+      if (ghRes.ok) {
+        const ghData = (await ghRes.json()) as any;
+        if (ghData.content) {
+          const buffer = Buffer.from(ghData.content, 'base64');
+          const decoded = buffer.toString('utf-8');
+          return res.json({
+            success: true,
+            readme: decoded,
+            name: ghData.name || 'README.md',
+            html_url: ghData.html_url || `https://github.com/${repoOwner}/${repoName}`,
+          });
+        }
+      }
+    } catch (apiErr) {
+      console.warn('GitHub API fetch failed, trying raw fallback:', apiErr);
+    }
+
+    // 2. Fallback to raw githubusercontent
+    const branches = ['HEAD', 'main', 'master'];
+    for (const b of branches) {
+      try {
+        const rawRes = await fetch(`https://raw.githubusercontent.com/${repoOwner}/${repoName}/${b}/README.md`);
+        if (rawRes.ok) {
+          const text = await rawRes.text();
+          if (text && text.length > 0) {
+            return res.json({
+              success: true,
+              readme: text,
+              name: 'README.md',
+              html_url: `https://github.com/${repoOwner}/${repoName}`,
+            });
+          }
+        }
+      } catch {}
+    }
+
+    return res.status(404).json({
+      success: false,
+      error: `未能获取到 ${repoOwner}/${repoName} 的 README 文档`,
+    });
+  });
+
   // 6.9 Service Worker endpoint for PWA installability
   app.get('/sw.js', (req, res) => {
     res.setHeader('Content-Type', 'text/javascript');
