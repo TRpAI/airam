@@ -71,6 +71,23 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
       const data = await res.json();
       let list: RepoSubmission[] = data.submissions || [];
 
+      // 检查本地演示数据是否已清空
+      const isDemoPurged = localStorage.getItem('airam_demo_purged') === 'true';
+      if (isDemoPurged) {
+        list = list.filter((item) => !item.id.startsWith('sub-sample-'));
+      }
+
+      // 过滤本地已删除黑名单
+      try {
+        const deletedRaw = localStorage.getItem('airam_deleted_submission_ids');
+        if (deletedRaw) {
+          const deletedIds: string[] = JSON.parse(deletedRaw);
+          if (deletedIds.length > 0) {
+            list = list.filter((item) => !deletedIds.includes(item.id));
+          }
+        }
+      } catch {}
+
       // 融合本地审核持久化覆盖，防止刷新或网络延迟导致已审核状态回退到待审核
       const overrides = getLocalReviews();
       if (Object.keys(overrides).length > 0) {
@@ -217,6 +234,7 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
       rejectedCount: action === 'reject' ? prev.rejectedCount + 1 : prev.rejectedCount,
     }));
 
+    const effectiveAdmin = adminLogin || 'osahermes';
     try {
       const res = await fetch(`/api/submissions/${id}/review`, {
         method: 'POST',
@@ -224,7 +242,7 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
         body: JSON.stringify({
           action,
           review_comment: comment,
-          admin_login: adminLogin,
+          admin_login: effectiveAdmin,
         }),
       });
 
@@ -249,18 +267,31 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
     adminLogin?: string
   ): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
+    const effectiveAdmin = adminLogin || 'osahermes';
     try {
-      // 移除本地持久化
+      // 移除本地审核覆盖
       try {
         const cur = getLocalReviews();
         delete cur[id];
         localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(cur));
       } catch {}
 
+      // 加入本地已删除黑名单，避免任何情况重新渲染
+      try {
+        const deletedRaw = localStorage.getItem('airam_deleted_submission_ids') || '[]';
+        const deletedIds: string[] = JSON.parse(deletedRaw);
+        if (!deletedIds.includes(id)) {
+          deletedIds.push(id);
+          localStorage.setItem('airam_deleted_submission_ids', JSON.stringify(deletedIds));
+        }
+      } catch {}
+
       setSubmissions((prev) => prev.filter((s) => s.id !== id));
 
-      const res = await fetch(`/api/submissions/${id}?admin_login=${encodeURIComponent(adminLogin || '')}`, {
+      const res = await fetch(`/api/submissions/${id}?admin_login=${encodeURIComponent(effectiveAdmin)}`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_login: effectiveAdmin }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

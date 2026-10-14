@@ -6,7 +6,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   Play,
-  KeyRound
+  KeyRound,
+  Trash2
 } from 'lucide-react';
 import { GitHubRepository, SyncLog } from '../types';
 import { fetchPublicGitHubRepo, computeHmacSignature } from '../services/githubService';
@@ -15,6 +16,7 @@ interface GitHubSyncViewProps {
   repos: GitHubRepository[];
   syncLogs: SyncLog[];
   onAddRepo: (repo: GitHubRepository, autoCard?: boolean) => void;
+  onDeleteRepo?: (repoId: string) => void;
   onSyncRepo: (repoId: string) => Promise<void>;
   onSyncAll: () => Promise<void>;
   isSyncing: boolean;
@@ -24,6 +26,7 @@ export const GitHubSyncView: React.FC<GitHubSyncViewProps> = ({
   repos,
   syncLogs,
   onAddRepo,
+  onDeleteRepo,
   onSyncRepo,
   onSyncAll,
   isSyncing,
@@ -312,6 +315,19 @@ export const GitHubSyncView: React.FC<GitHubSyncViewProps> = ({
                 >
                   增量同步
                 </button>
+                {onDeleteRepo && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`确定要移除代码库 ${repo.full_name} 吗？`)) {
+                        onDeleteRepo(repo.id);
+                      }
+                    }}
+                    className="p-1 rounded border border-zinc-200 dark:border-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs transition-colors"
+                    title="移除该仓库"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))}

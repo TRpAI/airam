@@ -115,53 +115,107 @@ export default function App() {
     (new URLSearchParams(window.location.search).has('code') || window.location.pathname.includes('/auth/callback'));
   const isHandlingCallback = isExchangingCode || (callbackStep !== 'idle') || isUrlCallback;
 
-  // 生产环境规范：严格移除所有演示数据 (import.meta.env.PROD 状态或用户手动清理)
-  const isPurgedMode = import.meta.env.PROD || localStorage.getItem('airam_demo_purged') === 'true';
+  // 演示数据清理标记
+  const isDemoPurged = localStorage.getItem('airam_demo_purged') === 'true';
 
-  // 全局核心状态
+  // 全局核心状态：优先从 localStorage 读取（确保无论增删改均持久保存），无缓存时若未清理则使用演示初始数据
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(() => {
-    if (isPurgedMode) return [];
     try {
       const saved = localStorage.getItem('airam_knowledge');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) return JSON.parse(saved);
     } catch {}
-    return initialKnowledgeItems;
+    return isDemoPurged ? [] : initialKnowledgeItems;
   });
 
   const [projects, setProjects] = useState<Project[]>(() => {
-    if (isPurgedMode) return [];
     try {
       const saved = localStorage.getItem('airam_projects');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) return JSON.parse(saved);
     } catch {}
-    return initialProjects;
+    return isDemoPurged ? [] : initialProjects;
   });
 
   const [repos, setRepos] = useState<GitHubRepository[]>(() => {
-    if (isPurgedMode) return [];
     try {
       const saved = localStorage.getItem('airam_repos');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) return JSON.parse(saved);
     } catch {}
-    return initialGitHubRepos;
+    return isDemoPurged ? [] : initialGitHubRepos;
   });
 
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>(() => {
-    if (isPurgedMode) return [];
-    return initialSyncLogs;
+    try {
+      const saved = localStorage.getItem('airam_sync_logs');
+      if (saved !== null) return JSON.parse(saved);
+    } catch {}
+    return isDemoPurged ? [] : initialSyncLogs;
   });
 
   const [tags] = useState<Tag[]>(initialTags);
 
-  const handlePurgeAllDemoData = () => {
+  // 核心响应式持久化监听：只要增删改查任何项目或仓库，即刻同步落盘至 localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('airam_knowledge', JSON.stringify(knowledge));
+    } catch (e) {
+      console.warn('保存知识库失败:', e);
+    }
+  }, [knowledge]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('airam_projects', JSON.stringify(projects));
+    } catch (e) {
+      console.warn('保存项目失败:', e);
+    }
+  }, [projects]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('airam_repos', JSON.stringify(repos));
+    } catch (e) {
+      console.warn('保存仓库列表失败:', e);
+    }
+  }, [repos]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('airam_sync_logs', JSON.stringify(syncLogs));
+    } catch (e) {
+      console.warn('保存同步日志失败:', e);
+    }
+  }, [syncLogs]);
+
+  const handlePurgeAllDemoData = async () => {
     localStorage.setItem('airam_demo_purged', 'true');
-    localStorage.removeItem('airam_knowledge');
-    localStorage.removeItem('airam_projects');
-    localStorage.removeItem('airam_repos');
+    localStorage.setItem('airam_knowledge', '[]');
+    localStorage.setItem('airam_projects', '[]');
+    localStorage.setItem('airam_repos', '[]');
+    localStorage.setItem('airam_sync_logs', '[]');
+    localStorage.removeItem('airam_local_submission_reviews');
+    localStorage.removeItem('airam_deleted_submission_ids');
+
     setKnowledge([]);
     setProjects([]);
     setRepos([]);
     setSyncLogs([]);
+
+    // 调用服务端清理接口，彻底擦除所有演示提交及讨论记录
+    try {
+      await fetch('/api/admin/purge-demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_login: user?.login || 'osahermes',
+          purgeAll: true,
+        }),
+      });
+    } catch (e) {
+      console.warn('通知后端清理演示数据提示:', e);
+    }
+
+    // 重新拉取以呈现纯净初始态
+    await fetchSubmissions();
   };
 
   // R2 可选项状态 (默认 false: 保持纯 D1 极简形态)
@@ -282,6 +336,12 @@ export default function App() {
       created_at: new Date().toISOString(),
     };
     setSyncLogs((prev) => [log, ...prev]);
+  };
+
+  // 3.5 移除/删除已纳管仓库
+  const handleDeleteRepo = (repoId: string) => {
+    setRepos((prev) => prev.filter((r) => r.id !== repoId));
+    setSyncLogs((prev) => prev.filter((log) => log.repo_id !== repoId));
   };
 
   // 4. 单仓库增量同步
@@ -666,6 +726,7 @@ export default function App() {
                     repos={repos}
                     syncLogs={syncLogs}
                     onAddRepo={handleAddRepo}
+                    onDeleteRepo={handleDeleteRepo}
                     onSyncRepo={handleSyncRepo}
                     onSyncAll={handleSyncAll}
                     isSyncing={isSyncing}

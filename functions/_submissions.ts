@@ -274,3 +274,25 @@ export async function deleteSubmissionRecord(
 
   return { success: true };
 }
+
+export async function purgeAllSubmissions(
+  env: any,
+  adminLogin?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (adminLogin && !isUserAdmin(env, adminLogin)) {
+    return { success: false, error: '只有系统管理员有权清理演示数据' };
+  }
+
+  memorySubmissions = [];
+
+  const db = env?.DB || env?.AIRAM_DB;
+  if (db && typeof db.prepare === 'function') {
+    try {
+      await db.prepare('DELETE FROM repo_submissions').run();
+    } catch (e) {
+      console.warn('D1 purge submissions failed:', e);
+    }
+  }
+
+  return { success: true };
+}

@@ -38,12 +38,13 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
 }) => {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
+  const [purgeSuccess, setPurgeSuccess] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const { isInstalled, install } = usePWAInstall();
 
   const isProduction = import.meta.env.PROD;
-  const isPurged = localStorage.getItem('airam_demo_purged') === 'true' || isProduction;
+  const isPurged = localStorage.getItem('airam_demo_purged') === 'true' || (knowledgeCount === 0 && projectsCount === 0 && reposCount === 0);
 
   const handleRefreshStatus = async () => {
     setRefreshing(true);
@@ -52,6 +53,13 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handleConfirmPurge = async () => {
+    onPurgeDemoData();
+    setPurgeConfirmOpen(false);
+    setPurgeSuccess(true);
+    setTimeout(() => setPurgeSuccess(false), 4000);
   };
 
   return (
@@ -262,21 +270,26 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
             </p>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  onPurgeDemoData();
-                  setPurgeConfirmOpen(false);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs hover:bg-rose-700"
+                onClick={handleConfirmPurge}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 cursor-pointer"
               >
                 确认彻底清空
               </button>
               <button
                 onClick={() => setPurgeConfirmOpen(false)}
-                className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs"
+                className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs cursor-pointer"
               >
                 取消
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Purge Success Banner */}
+        {purgeSuccess && (
+          <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+            <span>已成功彻底清空所有演示数据！中枢已重置为纯净状态。</span>
           </div>
         )}
       </div>
