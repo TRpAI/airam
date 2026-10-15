@@ -153,6 +153,41 @@ export default function App() {
 
   const [tags] = useState<Tag[]>(initialTags);
 
+  // 标记初次从中枢加载完成，避免初始挂载状态冲刷远端中枢
+  const isHydratedRef = React.useRef(false);
+  const syncDebounceTimer = React.useRef<NodeJS.Timeout | null>(null);
+
+  // 跨端中枢双向实时同步广播
+  const syncHubToServer = React.useCallback(
+    (patch?: {
+      projects?: Project[];
+      repos?: GitHubRepository[];
+      knowledge?: KnowledgeItem[];
+      syncLogs?: SyncLog[];
+      isDemoPurged?: boolean;
+    }) => {
+      if (syncDebounceTimer.current) clearTimeout(syncDebounceTimer.current);
+      syncDebounceTimer.current = setTimeout(() => {
+        const payload = {
+          projects,
+          repos,
+          knowledge,
+          syncLogs,
+          isDemoPurged: true,
+          ...patch,
+        };
+        fetch('/api/hub/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch((e) => {
+          console.warn('中枢数据同步提示:', e);
+        });
+      }, 150);
+    },
+    [projects, repos, knowledge, syncLogs]
+  );
+
   // 从服务端同步全局中枢数据，确保多浏览器、隐身窗口、移动端等所有终端看到的内容完全统一
   React.useEffect(() => {
     fetch('/api/hub/data')
@@ -165,26 +200,72 @@ export default function App() {
           if (data.isDemoPurged !== false) {
             localStorage.setItem('airam_demo_purged', 'true');
           }
-          if (Array.isArray(data.projects)) {
-            setProjects(data.projects);
-            try { localStorage.setItem('airam_projects', JSON.stringify(data.projects)); } catch {}
-          }
-          if (Array.isArray(data.repos)) {
+
+          let localRepos: GitHubRepository[] = [];
+          let localProjects: Project[] = [];
+          let localKnowledge: KnowledgeItem[] = [];
+          let localLogs: SyncLog[] = [];
+          try {
+            const r = localStorage.getItem('airam_repos');
+            if (r) localRepos = JSON.parse(r);
+            const p = localStorage.getItem('airam_projects');
+            if (p) localProjects = JSON.parse(p);
+            const k = localStorage.getItem('airam_knowledge');
+            if (k) localKnowledge = JSON.parse(k);
+            const l = localStorage.getItem('airam_sync_logs');
+            if (l) localLogs = JSON.parse(l);
+          } catch {}
+
+          // 仓库双向校准：若远端有记录则采用远端；若远端为空但本地有刚添加的仓库，则向上补推远端，绝不清空本地仓库
+          if (Array.isArray(data.repos) && data.repos.length > 0) {
             setRepos(data.repos);
             try { localStorage.setItem('airam_repos', JSON.stringify(data.repos)); } catch {}
+          } else if (localRepos.length > 0) {
+            fetch('/api/hub/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                repos: localRepos,
+                projects: localProjects,
+                knowledge: localKnowledge,
+                syncLogs: localLogs,
+                isDemoPurged: true,
+              }),
+            }).catch(() => {});
+          } else if (Array.isArray(data.repos)) {
+            setRepos(data.repos);
           }
-          if (Array.isArray(data.knowledge)) {
+
+          // 项目卡片双向校准
+          if (Array.isArray(data.projects) && data.projects.length > 0) {
+            setProjects(data.projects);
+            try { localStorage.setItem('airam_projects', JSON.stringify(data.projects)); } catch {}
+          } else if (localProjects.length === 0 && Array.isArray(data.projects)) {
+            setProjects(data.projects);
+          }
+
+          // 知识手记双向校准
+          if (Array.isArray(data.knowledge) && data.knowledge.length > 0) {
             setKnowledge(data.knowledge);
             try { localStorage.setItem('airam_knowledge', JSON.stringify(data.knowledge)); } catch {}
+          } else if (localKnowledge.length === 0 && Array.isArray(data.knowledge)) {
+            setKnowledge(data.knowledge);
           }
-          if (Array.isArray(data.syncLogs)) {
+
+          // 日志双向校准
+          if (Array.isArray(data.syncLogs) && data.syncLogs.length > 0) {
             setSyncLogs(data.syncLogs);
             try { localStorage.setItem('airam_sync_logs', JSON.stringify(data.syncLogs)); } catch {}
+          } else if (localLogs.length === 0 && Array.isArray(data.syncLogs)) {
+            setSyncLogs(data.syncLogs);
           }
         }
       })
       .catch((e) => {
         console.warn('服务端中枢数据同步提示:', e);
+      })
+      .finally(() => {
+        isHydratedRef.current = true;
       });
   }, []);
 
@@ -195,7 +276,10 @@ export default function App() {
     } catch (e) {
       console.warn('保存知识库失败:', e);
     }
-  }, [knowledge]);
+    if (isHydratedRef.current) {
+      syncHubToServer({ knowledge });
+    }
+  }, [knowledge, syncHubToServer]);
 
   React.useEffect(() => {
     try {
@@ -203,7 +287,10 @@ export default function App() {
     } catch (e) {
       console.warn('保存项目失败:', e);
     }
-  }, [projects]);
+    if (isHydratedRef.current) {
+      syncHubToServer({ projects });
+    }
+  }, [projects, syncHubToServer]);
 
   React.useEffect(() => {
     try {
@@ -211,7 +298,10 @@ export default function App() {
     } catch (e) {
       console.warn('保存仓库列表失败:', e);
     }
-  }, [repos]);
+    if (isHydratedRef.current) {
+      syncHubToServer({ repos });
+    }
+  }, [repos, syncHubToServer]);
 
   React.useEffect(() => {
     try {
@@ -219,7 +309,10 @@ export default function App() {
     } catch (e) {
       console.warn('保存同步日志失败:', e);
     }
-  }, [syncLogs]);
+    if (isHydratedRef.current) {
+      syncHubToServer({ syncLogs });
+    }
+  }, [syncLogs, syncHubToServer]);
 
   const handlePurgeAllDemoData = async () => {
     localStorage.setItem('airam_demo_purged', 'true');
@@ -229,6 +322,7 @@ export default function App() {
     localStorage.setItem('airam_sync_logs', '[]');
     localStorage.removeItem('airam_local_submission_reviews');
     localStorage.removeItem('airam_deleted_submission_ids');
+    localStorage.removeItem('airam_user_submissions');
 
     setKnowledge([]);
     setProjects([]);

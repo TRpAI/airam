@@ -9,7 +9,13 @@ import {
   Search, 
   Save,
   ArrowLeft,
-  X
+  X,
+  Tag as TagIcon,
+  Filter,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw
 } from 'lucide-react';
 import { KnowledgeItem, KnowledgeType, Tag } from '../types';
 
@@ -42,11 +48,38 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
 
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tagFilterMode, setTagFilterMode] = useState<'AND' | 'OR'>('AND');
+  const [showAllTags, setShowAllTags] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   
   // 移动端专用：是否处于“查看正文详情”视图
   const [mobileViewingDetail, setMobileViewingDetail] = useState<boolean>(false);
+
+  // 统计所有知识条目中的标签分布及出现频次
+  const tagStats = useMemo(() => {
+    const map: Record<string, number> = {};
+    knowledge.forEach((item) => {
+      (item.tags || []).forEach((t) => {
+        const clean = t.trim();
+        if (clean) {
+          map[clean] = (map[clean] || 0) + 1;
+        }
+      });
+    });
+
+    tags.forEach((t) => {
+      const clean = t.name.trim();
+      if (clean && !(clean in map)) {
+        map[clean] = 0;
+      }
+    });
+
+    return Object.entries(map)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [knowledge, tags]);
 
   // 当前激活条目
   const activeItem = useMemo(() => {
@@ -70,6 +103,16 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
     setMobileViewingDetail(true);
   };
 
+  const handleToggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleClearTags = () => {
+    setSelectedTags([]);
+  };
+
   const filteredKnowledge = useMemo(() => {
     return knowledge.filter((item) => {
       const matchType = filterType === 'all' || item.type === filterType;
@@ -77,10 +120,24 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
         searchQuery === '' ||
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.summary.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchType && matchSearch;
+        item.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.tags || []).some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      let matchTags = true;
+      if (selectedTags.length > 0) {
+        const itemTags = (item.tags || []).map((t) => t.toLowerCase());
+        if (tagFilterMode === 'AND') {
+          // 多标签联动交集 (全部匹配)
+          matchTags = selectedTags.every((st) => itemTags.includes(st.toLowerCase()));
+        } else {
+          // 多标签并集 (任一匹配)
+          matchTags = selectedTags.some((st) => itemTags.includes(st.toLowerCase()));
+        }
+      }
+
+      return matchType && matchSearch && matchTags;
     });
-  }, [knowledge, filterType, searchQuery]);
+  }, [knowledge, filterType, searchQuery, selectedTags, tagFilterMode]);
 
   const handleCreateNew = () => {
     const newItem: KnowledgeItem = {
@@ -180,11 +237,113 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
           ))}
         </div>
 
+        {/* Multi-Tag Interactive Filter Bar */}
+        {tagStats.length > 0 && (
+          <div className="p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-mono">
+              <div className="flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
+                <TagIcon className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                <span>标签联动筛选</span>
+                {selectedTags.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-600 text-white font-bold">
+                    {selectedTags.length}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {selectedTags.length > 1 && (
+                  <button
+                    onClick={() => setTagFilterMode((prev) => (prev === 'AND' ? 'OR' : 'AND'))}
+                    className="px-1.5 py-0.5 rounded text-[10px] border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 transition-colors"
+                    title={tagFilterMode === 'AND' ? '当前模式：同时包含全部已选标签 (AND)' : '当前模式：包含任一已选标签 (OR)'}
+                  >
+                    模式: {tagFilterMode === 'AND' ? '且 (AND)' : '或 (OR)'}
+                  </button>
+                )}
+
+                {selectedTags.length > 0 && (
+                  <button
+                    onClick={handleClearTags}
+                    className="flex items-center gap-0.5 text-rose-500 hover:text-rose-600 text-[10px] transition-colors"
+                    title="清空已选标签"
+                  >
+                    <RotateCcw className="h-2.5 w-2.5" />
+                    <span>清空</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tag Pills */}
+            <div className="flex flex-wrap gap-1.5">
+              {(showAllTags ? tagStats : tagStats.slice(0, 10)).map((t) => {
+                const isSelected = selectedTags.includes(t.name);
+                return (
+                  <button
+                    key={t.name}
+                    onClick={() => handleToggleTag(t.name)}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono transition-all ${
+                      isSelected
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs ring-1 ring-zinc-700 dark:ring-zinc-300'
+                        : 'bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/80 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+                    }`}
+                  >
+                    {isSelected && <Check className="h-2.5 w-2.5 text-emerald-400 dark:text-emerald-600" />}
+                    <span>#{t.name}</span>
+                    <span className={`text-[9px] ${isSelected ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                      {t.count}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {tagStats.length > 10 && (
+                <button
+                  onClick={() => setShowAllTags(!showAllTags)}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                >
+                  {showAllTags ? (
+                    <>
+                      <span>收起</span>
+                      <ChevronUp className="h-3 w-3" />
+                    </>
+                  ) : (
+                    <>
+                      <span>更多 ({tagStats.length - 10})</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Filter Summary Status */}
+            <div className="flex items-center justify-between pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60 text-[10px] text-zinc-400 font-mono">
+              <span>共筛选出 {filteredKnowledge.length} / {knowledge.length} 条</span>
+              {selectedTags.length > 0 && (
+                <span className="text-emerald-600 dark:text-emerald-400 truncate max-w-[150px]">
+                  已选: {selectedTags.map((t) => `#${t}`).join(tagFilterMode === 'AND' ? ' + ' : ' | ')}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Knowledge List Items */}
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/30 max-h-[640px] overflow-y-auto">
           {filteredKnowledge.length === 0 ? (
-            <div className="p-6 text-center text-xs text-zinc-400 font-mono">
-              暂无匹配条目
+            <div className="p-6 text-center text-xs text-zinc-400 font-mono space-y-2">
+              <p>暂无匹配条目</p>
+              {selectedTags.length > 0 && (
+                <button
+                  onClick={handleClearTags}
+                  className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span>清除标签筛选 ({selectedTags.length})</span>
+                </button>
+              )}
             </div>
           ) : (
             filteredKnowledge.map((item) => (
@@ -211,6 +370,32 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-1 leading-relaxed">
                   {item.summary || item.content.slice(0, 80)}
                 </p>
+
+                {/* Tags on Card */}
+                {item.tags && item.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {item.tags.map((t) => {
+                      const isMatched = selectedTags.includes(t);
+                      return (
+                        <span
+                          key={t}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleTag(t);
+                          }}
+                          title={`点击${isMatched ? '取消' : '添加'}标签筛选 #${t}`}
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                            isMatched
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-700 shadow-2xs'
+                              : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                          }`}
+                        >
+                          #{t}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 mt-2">
                   {new Date(item.updated_at).toLocaleDateString()} · {item.type}
@@ -342,8 +527,38 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
                       type="text"
                       value={editTags.join(', ')}
                       onChange={(e) => setEditTags(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+                      placeholder="如: 架构设计, D1, Cloudflare"
                       className="w-full px-3 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-500"
                     />
+                    {/* 快捷点击添加现有标签 */}
+                    {tagStats.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {tagStats.slice(0, 10).map((t) => {
+                          const hasTag = editTags.includes(t.name);
+                          return (
+                            <button
+                              key={t.name}
+                              type="button"
+                              onClick={() => {
+                                if (hasTag) {
+                                  setEditTags(editTags.filter((x) => x !== t.name));
+                                } else {
+                                  setEditTags([...editTags, t.name]);
+                                }
+                              }}
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                                hasTag
+                                  ? 'bg-emerald-600 text-white font-medium'
+                                  : 'bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                              }`}
+                              title={hasTag ? `已包含 #${t.name}，点击移除` : `点击快捷追加 #${t.name}`}
+                            >
+                              {hasTag ? '✓ ' : '+ '}#{t.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 

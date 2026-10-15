@@ -21,46 +21,7 @@ export interface RepoSubmissionRecord {
 }
 
 // Global edge worker isolate in-memory store
-let memorySubmissions: RepoSubmissionRecord[] = [
-  {
-    id: 'sub-1791903091295-7w1q2k',
-    repo_url: 'https://github.com/vuejs/core',
-    owner: 'vuejs',
-    name: 'core',
-    full_name: 'vuejs/core',
-    description: '🖖 Vue.js is a progressive, incrementally-adoptable JavaScript framework for building UI on the web.',
-    stars: 54648,
-    language: 'TypeScript',
-    homepage: 'https://vuejs.org/',
-    submitter_login: 'guest_dev',
-    submitter_avatar: 'https://github.com/guest_dev.png',
-    submitter_note: '测试访客提交',
-    status: 'approved',
-    reviewed_at: '2026-10-13T14:51:45.387Z',
-    reviewed_by: 'osahermes',
-    review_comment: '已审核通过，精选展示',
-    created_at: '2026-10-13T14:51:31.295Z'
-  },
-  {
-    id: 'sub-1791604347871-f0kawb',
-    repo_url: 'https://github.com/react/react',
-    owner: 'facebook',
-    name: 'react',
-    full_name: 'facebook/react',
-    description: 'The library for web and native user interfaces.',
-    stars: 250806,
-    language: 'JavaScript',
-    homepage: 'https://react.dev',
-    submitter_login: 'visitor_john',
-    submitter_avatar: 'https://github.com/visitor_john.png',
-    submitter_note: '全球最流行的现代前端界面渲染框架',
-    status: 'approved',
-    created_at: '2026-10-10T03:52:27.871Z',
-    reviewed_at: '2026-10-13T14:51:38.530Z',
-    reviewed_by: 'osahermes',
-    review_comment: '管理员直接发布（免审核展示）'
-  }
-];
+let memorySubmissions: RepoSubmissionRecord[] = [];
 
 export async function ensureSubmissionsTable(env: any): Promise<void> {
   const db = env?.DB || env?.AIRAM_DB;
@@ -99,7 +60,7 @@ export async function getAllSubmissions(env: any): Promise<RepoSubmissionRecord[
   if (db && typeof db.prepare === 'function') {
     try {
       const { results } = await db.prepare('SELECT * FROM repo_submissions ORDER BY created_at DESC').all();
-      if (Array.isArray(results) && results.length > 0) {
+      if (Array.isArray(results)) {
         return results as any[];
       }
     } catch (e) {

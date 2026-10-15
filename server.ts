@@ -241,16 +241,14 @@ function loadSubmissions(): RepoSubmission[] {
     if (fs.existsSync(SUBMISSIONS_STORE_FILE)) {
       const raw = fs.readFileSync(SUBMISSIONS_STORE_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Strip out any obsolete sample submissions so that all browsers see only real submissions
-        const cleaned = parsed.filter((s: RepoSubmission) => !s.id.startsWith('sub-sample-'));
-        return cleaned.length > 0 ? cleaned : defaultSubmissions;
+      if (Array.isArray(parsed)) {
+        return parsed;
       }
     }
   } catch (err) {
     console.warn('Failed to load submissions:', err);
   }
-  return defaultSubmissions;
+  return [];
 }
 
 function saveSubmissions(data: RepoSubmission[]) {
@@ -335,6 +333,38 @@ function saveComments(data: RepoComment[]): void {
 }
 
 let commentsCache: RepoComment[] = loadComments();
+
+// --- 3.6 Hub Central Data Store (Projects, Repos, Knowledge, SyncLogs) ---
+const HUB_STORE_FILE = path.resolve(DATA_DIR, 'hub_data.json');
+
+function loadHubData() {
+  try {
+    if (fs.existsSync(HUB_STORE_FILE)) {
+      const raw = fs.readFileSync(HUB_STORE_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch {}
+  return {
+    projects: [],
+    repos: [],
+    knowledge: [],
+    syncLogs: [],
+    isDemoPurged: true,
+  };
+}
+
+function saveHubData(data: any): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(HUB_STORE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('Failed to save hub data to disk:', e);
+  }
+}
+
+let hubDataCache = loadHubData();
 
 function parseGitHubRepo(input: string): { owner: string; name: string } | null {
   if (!input || typeof input !== 'string') return null;
@@ -1134,6 +1164,14 @@ async function startServer() {
     if (purgeAll) {
       submissionsCache = [];
       commentsCache = [];
+      hubDataCache = {
+        projects: [],
+        repos: [],
+        knowledge: [],
+        syncLogs: [],
+        isDemoPurged: true,
+      };
+      saveHubData(hubDataCache);
     } else {
       submissionsCache = submissionsCache.filter((s) => !s.id.startsWith('sub-sample-'));
       commentsCache = commentsCache.filter((c) => !c.id.startsWith('cmt-sample-') && !c.id.startsWith('cmt-1') && !c.id.startsWith('cmt-2'));
@@ -1297,25 +1335,6 @@ async function startServer() {
   });
 
   // 6.8 Hub Central Data Store (Syncs projects, repos, knowledge across all browsers & devices)
-  const HUB_STORE_FILE = path.join(DATA_DIR, 'hub_data.json');
-  function loadHubData() {
-    try {
-      if (fs.existsSync(HUB_STORE_FILE)) {
-        const raw = fs.readFileSync(HUB_STORE_FILE, 'utf-8');
-        return JSON.parse(raw);
-      }
-    } catch {}
-    return {
-      projects: [],
-      repos: [],
-      knowledge: [],
-      syncLogs: [],
-      isDemoPurged: true,
-    };
-  }
-
-  let hubDataCache = loadHubData();
-
   app.get('/api/hub/data', (req, res) => {
     res.json(hubDataCache);
   });
@@ -1328,12 +1347,7 @@ async function startServer() {
     if (syncLogs !== undefined) hubDataCache.syncLogs = syncLogs;
     if (isDemoPurged !== undefined) hubDataCache.isDemoPurged = isDemoPurged;
 
-    try {
-      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-      fs.writeFileSync(HUB_STORE_FILE, JSON.stringify(hubDataCache, null, 2), 'utf-8');
-    } catch (e) {
-      console.warn('Failed to save hub data to disk:', e);
-    }
+    saveHubData(hubDataCache);
 
     res.json({ success: true, updated: hubDataCache });
   });

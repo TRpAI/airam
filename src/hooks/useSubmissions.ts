@@ -75,12 +75,34 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
       list = list.filter((item) => !item.id.startsWith('sub-sample-'));
 
       // 过滤本地已删除黑名单
+      let deletedIds: string[] = [];
       try {
         const deletedRaw = localStorage.getItem('airam_deleted_submission_ids');
         if (deletedRaw) {
-          const deletedIds: string[] = JSON.parse(deletedRaw);
+          deletedIds = JSON.parse(deletedRaw);
           if (deletedIds.length > 0) {
             list = list.filter((item) => !deletedIds.includes(item.id));
+          }
+        }
+      } catch {}
+
+      // 融合本地保存的当前终端/用户提交仓库，防止刷新因审核或身份切换丢失自提交仓库
+      try {
+        const userSubsRaw = localStorage.getItem('airam_user_submissions');
+        if (userSubsRaw) {
+          const userSubs: RepoSubmission[] = JSON.parse(userSubsRaw);
+          if (Array.isArray(userSubs) && userSubs.length > 0) {
+            userSubs.forEach((us) => {
+              if (deletedIds.includes(us.id)) return;
+              const idx = list.findIndex(
+                (item) => item.id === us.id || item.full_name.toLowerCase() === us.full_name.toLowerCase()
+              );
+              if (idx >= 0) {
+                list[idx] = { ...us, ...list[idx] };
+              } else {
+                list.unshift(us);
+              }
+            });
           }
         }
       } catch {}
@@ -172,6 +194,14 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
       }
 
       if (data.submission) {
+        // 持久化当前终端提交的仓库记录，防止刷新后丢失
+        try {
+          const userSubsRaw = localStorage.getItem('airam_user_submissions');
+          const prevList: RepoSubmission[] = userSubsRaw ? JSON.parse(userSubsRaw) : [];
+          const nextList = [data.submission, ...prevList.filter((s) => s.id !== data.submission.id)];
+          localStorage.setItem('airam_user_submissions', JSON.stringify(nextList));
+        } catch {}
+
         // 若管理员提交，自动标记已批准并持久化
         if (isAdmin || data.submission.status === 'approved') {
           saveLocalReview(data.submission.id, {
@@ -271,6 +301,16 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
         const cur = getLocalReviews();
         delete cur[id];
         localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(cur));
+      } catch {}
+
+      // 移除本地自提交仓库
+      try {
+        const userSubsRaw = localStorage.getItem('airam_user_submissions');
+        if (userSubsRaw) {
+          const userSubs: RepoSubmission[] = JSON.parse(userSubsRaw);
+          const filtered = userSubs.filter((s) => s.id !== id);
+          localStorage.setItem('airam_user_submissions', JSON.stringify(filtered));
+        }
       } catch {}
 
       // 加入本地已删除黑名单，避免任何情况重新渲染
