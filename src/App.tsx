@@ -115,10 +115,10 @@ export default function App() {
     (new URLSearchParams(window.location.search).has('code') || window.location.pathname.includes('/auth/callback'));
   const isHandlingCallback = isExchangingCode || (callbackStep !== 'idle') || isUrlCallback;
 
-  // 演示数据清理标记
-  const isDemoPurged = localStorage.getItem('airam_demo_purged') === 'true';
+  // 演示数据清理标记：默认为纯净模式（true），杜绝任何新浏览器/隐身窗口打开时展示演示数据
+  const isDemoPurged = localStorage.getItem('airam_demo_purged') !== 'false';
 
-  // 全局核心状态：优先从 localStorage 读取（确保无论增删改均持久保存），无缓存时若未清理则使用演示初始数据
+  // 全局核心状态：优先从 localStorage 读取（确保无论增删改均持久保存），无缓存时默认使用纯净初始态
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(() => {
     try {
       const saved = localStorage.getItem('airam_knowledge');
@@ -153,7 +153,42 @@ export default function App() {
 
   const [tags] = useState<Tag[]>(initialTags);
 
-  // 核心响应式持久化监听：只要增删改查任何项目或仓库，即刻同步落盘至 localStorage
+  // 从服务端同步全局中枢数据，确保多浏览器、隐身窗口、移动端等所有终端看到的内容完全统一
+  React.useEffect(() => {
+    fetch('/api/hub/data')
+      .then((res) => {
+        if (!res.ok) throw new Error('Fetch hub data failed');
+        return res.json();
+      })
+      .then((data) => {
+        if (data) {
+          if (data.isDemoPurged !== false) {
+            localStorage.setItem('airam_demo_purged', 'true');
+          }
+          if (Array.isArray(data.projects)) {
+            setProjects(data.projects);
+            try { localStorage.setItem('airam_projects', JSON.stringify(data.projects)); } catch {}
+          }
+          if (Array.isArray(data.repos)) {
+            setRepos(data.repos);
+            try { localStorage.setItem('airam_repos', JSON.stringify(data.repos)); } catch {}
+          }
+          if (Array.isArray(data.knowledge)) {
+            setKnowledge(data.knowledge);
+            try { localStorage.setItem('airam_knowledge', JSON.stringify(data.knowledge)); } catch {}
+          }
+          if (Array.isArray(data.syncLogs)) {
+            setSyncLogs(data.syncLogs);
+            try { localStorage.setItem('airam_sync_logs', JSON.stringify(data.syncLogs)); } catch {}
+          }
+        }
+      })
+      .catch((e) => {
+        console.warn('服务端中枢数据同步提示:', e);
+      });
+  }, []);
+
+  // 核心响应式持久化监听：只要增删改查任何项目或仓库，即刻同步落盘至 localStorage 并广播服务端
   React.useEffect(() => {
     try {
       localStorage.setItem('airam_knowledge', JSON.stringify(knowledge));
@@ -200,7 +235,7 @@ export default function App() {
     setRepos([]);
     setSyncLogs([]);
 
-    // 调用服务端清理接口，彻底擦除所有演示提交及讨论记录
+    // 调用服务端清理接口与中枢同步端点，彻底擦除服务端所有演示记录
     try {
       await fetch('/api/admin/purge-demo', {
         method: 'POST',
@@ -208,6 +243,17 @@ export default function App() {
         body: JSON.stringify({
           admin_login: user?.login || 'osahermes',
           purgeAll: true,
+        }),
+      });
+      await fetch('/api/hub/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projects: [],
+          repos: [],
+          knowledge: [],
+          syncLogs: [],
+          isDemoPurged: true,
         }),
       });
     } catch (e) {

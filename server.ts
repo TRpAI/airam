@@ -194,39 +194,42 @@ export interface RepoSubmission {
 
 const defaultSubmissions: RepoSubmission[] = [
   {
-    id: 'sub-sample-1',
-    repo_url: 'https://github.com/tailwindlabs/tailwindcss',
-    owner: 'tailwindlabs',
-    name: 'tailwindcss',
-    full_name: 'tailwindlabs/tailwindcss',
-    description: 'A utility-first CSS framework for rapid UI development.',
-    stars: 83500,
-    language: 'CSS',
-    homepage: 'https://tailwindcss.com',
-    submitter_login: 'developer_guest',
-    submitter_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-    submitter_note: '现代前端必备的实用工具类原子化 CSS 框架，极大提效页面搭建',
+    id: 'sub-1791903091295-7w1q2k',
+    repo_url: 'https://github.com/vuejs/core',
+    owner: 'vuejs',
+    name: 'core',
+    full_name: 'vuejs/core',
+    description: '🖖 Vue.js is a progressive, incrementally-adoptable JavaScript framework for building UI on the web.',
+    stars: 54648,
+    language: 'TypeScript',
+    homepage: 'https://vuejs.org/',
+    submitter_login: 'guest_dev',
+    submitter_avatar: 'https://github.com/guest_dev.png',
+    submitter_note: '测试访客提交',
     status: 'approved',
-    review_comment: '高质量明星开源项目，符合研发中枢精选标准，批准展示。',
-    created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    reviewed_at: new Date(Date.now() - 3600000 * 20).toISOString(),
+    reviewed_at: '2026-10-13T14:51:45.387Z',
     reviewed_by: 'osahermes',
+    review_comment: '已审核通过，精选展示',
+    created_at: '2026-10-13T14:51:31.295Z'
   },
   {
-    id: 'sub-sample-2',
-    repo_url: 'https://github.com/sveltejs/svelte',
-    owner: 'sveltejs',
-    name: 'svelte',
-    full_name: 'sveltejs/svelte',
-    description: 'Cybernetically enhanced web apps with run-time compiler.',
-    stars: 79200,
+    id: 'sub-1791604347871-f0kawb',
+    repo_url: 'https://github.com/react/react',
+    owner: 'facebook',
+    name: 'react',
+    full_name: 'facebook/react',
+    description: 'The library for web and native user interfaces.',
+    stars: 250806,
     language: 'JavaScript',
-    homepage: 'https://svelte.dev',
-    submitter_login: 'open_contributor',
-    submitter_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-    submitter_note: '零虚拟 DOM 的编译器驱动轻量级前端框架，体验丝滑',
-    status: 'pending',
-    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+    homepage: 'https://react.dev',
+    submitter_login: 'visitor_john',
+    submitter_avatar: 'https://github.com/visitor_john.png',
+    submitter_note: '全球最流行的现代前端界面渲染框架',
+    status: 'approved',
+    created_at: '2026-10-10T03:52:27.871Z',
+    reviewed_at: '2026-10-13T14:51:38.530Z',
+    reviewed_by: 'osahermes',
+    review_comment: '管理员直接发布（免审核展示）'
   }
 ];
 
@@ -238,14 +241,14 @@ function loadSubmissions(): RepoSubmission[] {
     if (fs.existsSync(SUBMISSIONS_STORE_FILE)) {
       const raw = fs.readFileSync(SUBMISSIONS_STORE_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Strip out any obsolete sample submissions so that all browsers see only real submissions
+        const cleaned = parsed.filter((s: RepoSubmission) => !s.id.startsWith('sub-sample-'));
+        return cleaned.length > 0 ? cleaned : defaultSubmissions;
+      }
     }
   } catch (err) {
     console.warn('Failed to load submissions:', err);
-  }
-  // In production, return clean empty slate (no demo submissions)
-  if (process.env.NODE_ENV === 'production') {
-    return [];
   }
   return defaultSubmissions;
 }
@@ -1291,6 +1294,48 @@ async function startServer() {
       success: false,
       error: `未能获取到 ${repoOwner}/${repoName} 的 README 文档`,
     });
+  });
+
+  // 6.8 Hub Central Data Store (Syncs projects, repos, knowledge across all browsers & devices)
+  const HUB_STORE_FILE = path.join(DATA_DIR, 'hub_data.json');
+  function loadHubData() {
+    try {
+      if (fs.existsSync(HUB_STORE_FILE)) {
+        const raw = fs.readFileSync(HUB_STORE_FILE, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch {}
+    return {
+      projects: [],
+      repos: [],
+      knowledge: [],
+      syncLogs: [],
+      isDemoPurged: true,
+    };
+  }
+
+  let hubDataCache = loadHubData();
+
+  app.get('/api/hub/data', (req, res) => {
+    res.json(hubDataCache);
+  });
+
+  app.post('/api/hub/sync', (req, res) => {
+    const { projects, repos, knowledge, syncLogs, isDemoPurged } = req.body;
+    if (projects !== undefined) hubDataCache.projects = projects;
+    if (repos !== undefined) hubDataCache.repos = repos;
+    if (knowledge !== undefined) hubDataCache.knowledge = knowledge;
+    if (syncLogs !== undefined) hubDataCache.syncLogs = syncLogs;
+    if (isDemoPurged !== undefined) hubDataCache.isDemoPurged = isDemoPurged;
+
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(HUB_STORE_FILE, JSON.stringify(hubDataCache, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('Failed to save hub data to disk:', e);
+    }
+
+    res.json({ success: true, updated: hubDataCache });
   });
 
   // 6.9 Service Worker endpoint for PWA installability

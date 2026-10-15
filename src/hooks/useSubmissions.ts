@@ -71,11 +71,8 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
       const data = await res.json();
       let list: RepoSubmission[] = data.submissions || [];
 
-      // 检查本地演示数据是否已清空
-      const isDemoPurged = localStorage.getItem('airam_demo_purged') === 'true';
-      if (isDemoPurged) {
-        list = list.filter((item) => !item.id.startsWith('sub-sample-'));
-      }
+      // 永久过滤历史演示样例记录，确保任意浏览器（无缓存/隐身/异地终端）展示内容完全一致
+      list = list.filter((item) => !item.id.startsWith('sub-sample-'));
 
       // 过滤本地已删除黑名单
       try {

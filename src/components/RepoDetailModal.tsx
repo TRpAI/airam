@@ -15,8 +15,8 @@ import {
   Terminal,
   AlertCircle
 } from 'lucide-react';
-import { marked } from 'marked';
 import { RepoSubmission } from '../types';
+import { marked } from 'marked';
 
 interface RepoDetailModalProps {
   repo: RepoSubmission | null;
@@ -113,16 +113,81 @@ export const RepoDetailModal: React.FC<RepoDetailModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Parse Markdown to HTML
+  // Native zero-dependency Markdown to HTML parser
+  const renderMarkdownToHtml = (md: string): string => {
+    if (!md) return '';
+    let html = md;
+
+    // 1. Code blocks
+    const codeBlocks: string[] = [];
+    html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+      const escaped = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(
+        `<pre class="bg-zinc-900 text-zinc-100 p-4 rounded-xl border border-zinc-800 my-4 overflow-x-auto font-mono text-xs leading-relaxed"><code class="language-${lang}">${escaped}</code></pre>`
+      );
+      return placeholder;
+    });
+
+    // 2. Inline code
+    html = html.replace(/`([^`]+)`/g, (_, code) => {
+      const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<code class="bg-zinc-100 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-mono text-xs">${escaped}</code>`;
+    });
+
+    // 3. Headings
+    html = html.replace(/^######\s+(.+)$/gm, '<h6 class="text-xs font-bold font-mono text-zinc-800 dark:text-zinc-200 mt-3 mb-1">$1</h6>');
+    html = html.replace(/^#####\s+(.+)$/gm, '<h5 class="text-xs font-bold font-mono text-zinc-800 dark:text-zinc-200 mt-4 mb-1">$1</h5>');
+    html = html.replace(/^####\s+(.+)$/gm, '<h4 class="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-4 mb-2">$1</h4>');
+    html = html.replace(/^###\s+(.+)$/gm, '<h3 class="text-base font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-5 mb-2 pb-1 border-b border-zinc-100 dark:border-zinc-800">$1</h3>');
+    html = html.replace(/^##\s+(.+)$/gm, '<h2 class="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-6 mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-800">$1</h2>');
+    html = html.replace(/^#\s+(.+)$/gm, '<h1 class="text-xl sm:text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-6 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800">$1</h1>');
+
+    // 4. Blockquotes
+    html = html.replace(/^\>\s+(.+)$/gm, '<blockquote class="border-l-4 border-emerald-500 pl-4 py-1.5 my-3 bg-zinc-50 dark:bg-zinc-900/40 text-zinc-600 dark:text-zinc-400 italic rounded-r text-xs font-sans leading-relaxed">$1</blockquote>');
+
+    // 5. Horizontal rules
+    html = html.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-6 border-zinc-200 dark:border-zinc-800" />');
+
+    // 6. Images
+    html = html.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="rounded-lg max-h-96 my-3 object-contain border border-zinc-200 dark:border-zinc-800 shadow-xs" />');
+
+    // 7. Links
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-emerald-600 dark:text-emerald-400 underline hover:no-underline font-medium inline-flex items-center gap-0.5">$1</a>');
+
+    // 8. Bold & Italics
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-zinc-900 dark:text-zinc-100">$1</strong>');
+    html = html.replace(/__(.*?)__/g, '<strong class="font-bold text-zinc-900 dark:text-zinc-100">$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+    html = html.replace(/_(.*?)_/g, '<em class="italic">$1</em>');
+
+    // 9. Lists
+    html = html.replace(/^[\*\-\+]\s+(.+)$/gm, '<li class="text-zinc-700 dark:text-zinc-300 ml-4 list-disc text-xs sm:text-sm my-0.5">$1</li>');
+    html = html.replace(/^\d+\.\s+(.+)$/gm, '<li class="text-zinc-700 dark:text-zinc-300 ml-4 list-decimal text-xs sm:text-sm my-0.5">$1</li>');
+
+    // 10. Paragraphs
+    html = html.replace(/\n\n+/g, '</p><p class="my-3 text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">');
+    html = `<p class="my-3 text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">${html}</p>`;
+
+    // Restore code blocks
+    codeBlocks.forEach((block, idx) => {
+      html = html.replace(`<p class="my-3 text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">__CODE_BLOCK_${idx}__</p>`, block);
+      html = html.replace(`__CODE_BLOCK_${idx}__`, block);
+    });
+
+    return html;
+  };
+
   const parsedHtml = useMemo(() => {
     if (!readme) return '';
     try {
-      return marked.parse(readme, {
-        gfm: true,
-        breaks: true,
-      }) as string;
+      const htmlResult = marked.parse(readme, { gfm: true, breaks: true });
+      return typeof htmlResult === 'string' ? htmlResult : renderMarkdownToHtml(readme);
     } catch {
-      return '';
+      return renderMarkdownToHtml(readme);
     }
   }, [readme]);
 
