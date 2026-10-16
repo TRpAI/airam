@@ -1339,7 +1339,7 @@ async function startServer() {
     res.json(hubDataCache);
   });
 
-  app.post('/api/hub/sync', (req, res) => {
+  const handleHubSync = (req: express.Request, res: express.Response) => {
     const { projects, repos, knowledge, syncLogs, isDemoPurged } = req.body;
     if (projects !== undefined) hubDataCache.projects = projects;
     if (repos !== undefined) hubDataCache.repos = repos;
@@ -1350,7 +1350,10 @@ async function startServer() {
     saveHubData(hubDataCache);
 
     res.json({ success: true, updated: hubDataCache });
-  });
+  };
+
+  app.post('/api/hub/sync', handleHubSync);
+  app.post('/api/hub/data', handleHubSync);
 
   // 6.9 Service Worker endpoint for PWA installability
   app.get('/sw.js', (req, res) => {

@@ -98,7 +98,8 @@ export function useSubmissions(isAdmin = false, submitterLogin?: string) {
                 (item) => item.id === us.id || item.full_name.toLowerCase() === us.full_name.toLowerCase()
               );
               if (idx >= 0) {
-                list[idx] = { ...us, ...list[idx] };
+                // 本地用户提交状态具有权威性（包含用户填写的留言、审核覆盖与本地暂存）
+                list[idx] = { ...list[idx], ...us };
               } else {
                 list.unshift(us);
               }

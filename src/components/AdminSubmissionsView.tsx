@@ -252,29 +252,39 @@ export const AdminSubmissionsView: React.FC<AdminSubmissionsViewProps> = ({
                     <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
                   </a>
 
-                  {/* Status Badge */}
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                  {/* Status Indicator (Clean Minimalist Typography) */}
+                  <span className={`text-[11px] font-mono flex items-center gap-1.5 ${
                     item.status === 'pending'
-                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                      ? 'text-amber-600 dark:text-amber-400'
                       : item.status === 'approved'
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-500'
                   }`}>
-                    {item.status === 'pending' && '⏳ 待审核'}
-                    {item.status === 'approved' && '✅ 已批准展示'}
-                    {item.status === 'rejected' && '❌ 已驳回'}
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      item.status === 'pending' ? 'bg-amber-500 animate-pulse' : item.status === 'approved' ? 'bg-emerald-500' : 'bg-rose-500'
+                    }`} />
+                    <span>
+                      {item.status === 'pending' && '待审核'}
+                      {item.status === 'approved' && '已准入展示'}
+                      {item.status === 'rejected' && '已驳回'}
+                    </span>
                   </span>
 
+                  <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-700">·</span>
+
                   {/* Stars & Language */}
-                  <span className="flex items-center gap-1 text-xs font-mono text-amber-500">
-                    <Star className="h-3 w-3 fill-current" />
+                  <span className="flex items-center gap-1 text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                    <Star className="h-3 w-3 fill-current text-amber-500" />
                     <span>{item.stars.toLocaleString()}</span>
                   </span>
 
                   {item.language && (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
-                      {item.language}
-                    </span>
+                    <>
+                      <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-700">·</span>
+                      <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                        {item.language}
+                      </span>
+                    </>
                   )}
                 </div>
 

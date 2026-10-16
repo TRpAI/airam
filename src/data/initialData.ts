@@ -433,3 +433,63 @@ export const initialSyncLogs: SyncLog[] = [
     created_at: '2026-10-05T07:00:00Z',
   }
 ];
+
+const DEMO_REPO_IDS = new Set(['repo-1', 'repo-2', 'repo-3', 'repo-4']);
+const DEMO_PROJECT_IDS = new Set(['proj-1', 'proj-2', 'proj-3', 'proj-4']);
+const DEMO_KNOWLEDGE_IDS = new Set(['kb-1', 'kb-2', 'kb-3', 'kb-4', 'kb-5', 'kb-6']);
+const DEMO_LOG_IDS = new Set(['log-1', 'log-2', 'log-3', 'log-4']);
+
+export const isDemoRepo = (r: { id?: string; full_name?: string; name?: string }): boolean => {
+  if (!r) return false;
+  if (r.id && DEMO_REPO_IDS.has(r.id)) return true;
+  const fn = (r.full_name || '').toLowerCase();
+  const n = (r.name || '').toLowerCase();
+  if (
+    fn.includes('developer/cloudpulse') ||
+    fn.includes('developer/edgekv') ||
+    fn.includes('developer/github-assets') ||
+    fn.includes('developer/d1-sqlite')
+  ) {
+    return true;
+  }
+  if (['cloudpulse', 'edgekv-explorer', 'github-assets-bot', 'd1-sqlite-studio'].includes(n)) {
+    return true;
+  }
+  return false;
+};
+
+export const isDemoProject = (p: { id?: string; name?: string; repository_id?: string }): boolean => {
+  if (!p) return false;
+  if (p.id && DEMO_PROJECT_IDS.has(p.id)) return true;
+  if (p.repository_id && DEMO_REPO_IDS.has(p.repository_id)) return true;
+  const n = (p.name || '').toLowerCase();
+  if (['cloudpulse', 'edgekv explorer', 'github assets bot', 'd1 sqlite studio'].includes(n)) {
+    return true;
+  }
+  return false;
+};
+
+export const isDemoKnowledge = (k: { id?: string; title?: string }): boolean => {
+  if (!k) return false;
+  if (k.id && DEMO_KNOWLEDGE_IDS.has(k.id)) return true;
+  const t = (k.title || '').toLowerCase();
+  if (
+    t.includes('cloudflare workers 架构与边缘渲染引擎设计') ||
+    t.includes('d1 sqlite 关系型存储设计') ||
+    t.includes('github webhook 鉴权与 hmac') ||
+    t.includes('离线优先 pwa 缓存策略') ||
+    t.includes('cloudflare queue 异步任务缓冲') ||
+    t.includes('tailwind css 极简工程化规范')
+  ) {
+    return true;
+  }
+  return false;
+};
+
+export const isDemoSyncLog = (l: { id?: string; repo_id?: string }): boolean => {
+  if (!l) return false;
+  if (l.id && DEMO_LOG_IDS.has(l.id)) return true;
+  if (l.repo_id && DEMO_REPO_IDS.has(l.repo_id)) return true;
+  return false;
+};
+

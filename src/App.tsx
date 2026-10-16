@@ -54,7 +54,11 @@ import {
   initialProjects, 
   initialGitHubRepos, 
   initialSyncLogs, 
-  initialTags 
+  initialTags,
+  isDemoRepo,
+  isDemoProject,
+  isDemoKnowledge,
+  isDemoSyncLog
 } from './data/initialData';
 import { KnowledgeItem, Project, GitHubRepository, SyncLog, Tag } from './types';
 import { generateProjectCardFromRepo } from './services/githubService';
@@ -115,14 +119,19 @@ export default function App() {
     (new URLSearchParams(window.location.search).has('code') || window.location.pathname.includes('/auth/callback'));
   const isHandlingCallback = isExchangingCode || (callbackStep !== 'idle') || isUrlCallback;
 
-  // 演示数据清理标记：默认为纯净模式（true），杜绝任何新浏览器/隐身窗口打开时展示演示数据
-  const isDemoPurged = localStorage.getItem('airam_demo_purged') !== 'false';
+  // 演示数据已清除标记判定：优先读取本地 localStorage 标记；一旦标记为已清除，任何环境绝不可被服务端拉取的演示数据反向覆盖
+  const isDemoPurged = localStorage.getItem('airam_demo_purged') === 'true';
 
-  // 全局核心状态：优先从 localStorage 读取（确保无论增删改均持久保存），无缓存时默认使用纯净初始态
+  // 全局核心状态：优先从 localStorage 读取（若处于已清除模式，严格过滤所有演示数据），无缓存时保持干净空状态
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(() => {
     try {
       const saved = localStorage.getItem('airam_knowledge');
-      if (saved !== null) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return isDemoPurged ? parsed.filter((k: KnowledgeItem) => !isDemoKnowledge(k)) : parsed;
+        }
+      }
     } catch {}
     return isDemoPurged ? [] : initialKnowledgeItems;
   });
@@ -130,7 +139,12 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
       const saved = localStorage.getItem('airam_projects');
-      if (saved !== null) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return isDemoPurged ? parsed.filter((p: Project) => !isDemoProject(p)) : parsed;
+        }
+      }
     } catch {}
     return isDemoPurged ? [] : initialProjects;
   });
@@ -138,7 +152,12 @@ export default function App() {
   const [repos, setRepos] = useState<GitHubRepository[]>(() => {
     try {
       const saved = localStorage.getItem('airam_repos');
-      if (saved !== null) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return isDemoPurged ? parsed.filter((r: GitHubRepository) => !isDemoRepo(r)) : parsed;
+        }
+      }
     } catch {}
     return isDemoPurged ? [] : initialGitHubRepos;
   });
@@ -146,7 +165,12 @@ export default function App() {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>(() => {
     try {
       const saved = localStorage.getItem('airam_sync_logs');
-      if (saved !== null) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return isDemoPurged ? parsed.filter((l: SyncLog) => !isDemoSyncLog(l)) : parsed;
+        }
+      }
     } catch {}
     return isDemoPurged ? [] : initialSyncLogs;
   });
@@ -188,78 +212,166 @@ export default function App() {
     [projects, repos, knowledge, syncLogs]
   );
 
-  // 从服务端同步全局中枢数据，确保多浏览器、隐身窗口、移动端等所有终端看到的内容完全统一
+  // 从服务端同步全局中枢数据：严格执行【本地清除标记优先级 > 服务端演示数据】
   React.useEffect(() => {
+    let isCancelled = false;
+
     fetch('/api/hub/data')
       .then((res) => {
         if (!res.ok) throw new Error('Fetch hub data failed');
         return res.json();
       })
       .then((data) => {
-        if (data) {
-          if (data.isDemoPurged !== false) {
-            localStorage.setItem('airam_demo_purged', 'true');
+        if (isCancelled || !data) return;
+
+        // 1. 核心判定：只要本地标记清除，或者服务端标记清除，即进入纯净已清除模式
+        const isLocallyPurged = localStorage.getItem('airam_demo_purged') === 'true';
+        const isServerPurged = data?.isDemoPurged === true;
+        const shouldBePurged = isLocallyPurged || isServerPurged;
+
+        if (shouldBePurged) {
+          localStorage.setItem('airam_demo_purged', 'true');
+        }
+
+        // 2. 读取本地存储中缓存的数据，并严格过滤演示项
+        let localRepos: GitHubRepository[] = [];
+        let localProjects: Project[] = [];
+        let localKnowledge: KnowledgeItem[] = [];
+        let localLogs: SyncLog[] = [];
+        try {
+          const r = localStorage.getItem('airam_repos');
+          if (r) localRepos = JSON.parse(r);
+          const p = localStorage.getItem('airam_projects');
+          if (p) localProjects = JSON.parse(p);
+          const k = localStorage.getItem('airam_knowledge');
+          if (k) localKnowledge = JSON.parse(k);
+          const l = localStorage.getItem('airam_sync_logs');
+          if (l) localLogs = JSON.parse(l);
+        } catch {}
+
+        if (shouldBePurged) {
+          localRepos = localRepos.filter((r) => !isDemoRepo(r));
+          localProjects = localProjects.filter((p) => !isDemoProject(p));
+          localKnowledge = localKnowledge.filter((k) => !isDemoKnowledge(k));
+          localLogs = localLogs.filter((l) => !isDemoSyncLog(l));
+        }
+
+        // 3. 服务端数据严格校验：
+        // 关键逻辑：若服务端尚未清除 (data.isDemoPurged !== true)，服务端返回的所有数据均视为陈旧演示数据，
+        // 在已清除模式下严禁采用（强制置空），彻底阻止从服务端拉取并覆盖初始的本地空数据状态！
+        let serverRepos: GitHubRepository[] = [];
+        let serverProjects: Project[] = [];
+        let serverKnowledge: KnowledgeItem[] = [];
+        let serverLogs: SyncLog[] = [];
+
+        if (isServerPurged) {
+          // 仅当服务端也是明确的已清除状态时，才允许拉取服务端由其他终端新增的非演示真实数据
+          serverRepos = (Array.isArray(data.repos) ? data.repos : []).filter((r: GitHubRepository) => !isDemoRepo(r));
+          serverProjects = (Array.isArray(data.projects) ? data.projects : []).filter((p: Project) => !isDemoProject(p));
+          serverKnowledge = (Array.isArray(data.knowledge) ? data.knowledge : []).filter((k: KnowledgeItem) => !isDemoKnowledge(k));
+          serverLogs = (Array.isArray(data.syncLogs) ? data.syncLogs : []).filter((l: SyncLog) => !isDemoSyncLog(l));
+        } else if (!shouldBePurged) {
+          // 未清除模式（初次演示）：允许初次展示演示数据
+          serverRepos = Array.isArray(data.repos) ? data.repos : [];
+          serverProjects = Array.isArray(data.projects) ? data.projects : [];
+          serverKnowledge = Array.isArray(data.knowledge) ? data.knowledge : [];
+          serverLogs = Array.isArray(data.syncLogs) ? data.syncLogs : [];
+        }
+
+        // 4. 优先级决议算法 (Reconciliation Resolution):
+        // 规则 A: 已清除模式下，本地空状态 [] 是用户的显式意图，绝不接受未验证的服务端数据；
+        // 规则 B: 本地真实数据优先，若本地为空且服务端有确认的已清除非演示数据，才进行安全继承；
+        let resolvedRepos = localRepos;
+        let resolvedProjects = localProjects;
+        let resolvedKnowledge = localKnowledge;
+        let resolvedLogs = localLogs;
+
+        if (shouldBePurged) {
+          // 仓库决议
+          if (localRepos.length > 0) {
+            const localIds = new Set(localRepos.map((r) => r.id));
+            const localNames = new Set(localRepos.map((r) => r.full_name?.toLowerCase()));
+            const newFromServer = serverRepos.filter(
+              (r) => !localIds.has(r.id) && !localNames.has(r.full_name?.toLowerCase())
+            );
+            resolvedRepos = [...localRepos, ...newFromServer];
+          } else if (isServerPurged && serverRepos.length > 0) {
+            resolvedRepos = serverRepos;
+          } else {
+            resolvedRepos = [];
           }
 
-          let localRepos: GitHubRepository[] = [];
-          let localProjects: Project[] = [];
-          let localKnowledge: KnowledgeItem[] = [];
-          let localLogs: SyncLog[] = [];
-          try {
-            const r = localStorage.getItem('airam_repos');
-            if (r) localRepos = JSON.parse(r);
-            const p = localStorage.getItem('airam_projects');
-            if (p) localProjects = JSON.parse(p);
-            const k = localStorage.getItem('airam_knowledge');
-            if (k) localKnowledge = JSON.parse(k);
-            const l = localStorage.getItem('airam_sync_logs');
-            if (l) localLogs = JSON.parse(l);
-          } catch {}
+          // 项目卡片决议
+          if (localProjects.length > 0) {
+            const localIds = new Set(localProjects.map((p) => p.id));
+            const newFromServer = serverProjects.filter((p) => !localIds.has(p.id));
+            resolvedProjects = [...localProjects, ...newFromServer];
+          } else if (isServerPurged && serverProjects.length > 0) {
+            resolvedProjects = serverProjects;
+          } else {
+            resolvedProjects = [];
+          }
 
-          // 仓库双向校准：若远端有记录则采用远端；若远端为空但本地有刚添加的仓库，则向上补推远端，绝不清空本地仓库
-          if (Array.isArray(data.repos) && data.repos.length > 0) {
-            setRepos(data.repos);
-            try { localStorage.setItem('airam_repos', JSON.stringify(data.repos)); } catch {}
-          } else if (localRepos.length > 0) {
+          // 知识手记决议
+          if (localKnowledge.length > 0) {
+            const localIds = new Set(localKnowledge.map((k) => k.id));
+            const newFromServer = serverKnowledge.filter((k) => !localIds.has(k.id));
+            resolvedKnowledge = [...localKnowledge, ...newFromServer];
+          } else if (isServerPurged && serverKnowledge.length > 0) {
+            resolvedKnowledge = serverKnowledge;
+          } else {
+            resolvedKnowledge = [];
+          }
+
+          // 同步日志决议
+          if (localLogs.length > 0) {
+            resolvedLogs = localLogs;
+          } else if (isServerPurged && serverLogs.length > 0) {
+            resolvedLogs = serverLogs;
+          } else {
+            resolvedLogs = [];
+          }
+
+          // 如果服务端尚未标记为已清除，立即向服务端中枢发送同步请求，校准服务端状态
+          if (!isServerPurged) {
+            const syncPayload = {
+              repos: resolvedRepos,
+              projects: resolvedProjects,
+              knowledge: resolvedKnowledge,
+              syncLogs: resolvedLogs,
+              isDemoPurged: true,
+            };
             fetch('/api/hub/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                repos: localRepos,
-                projects: localProjects,
-                knowledge: localKnowledge,
-                syncLogs: localLogs,
-                isDemoPurged: true,
-              }),
+              body: JSON.stringify(syncPayload),
             }).catch(() => {});
-          } else if (Array.isArray(data.repos)) {
-            setRepos(data.repos);
+            fetch('/api/hub/data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(syncPayload),
+            }).catch(() => {});
           }
-
-          // 项目卡片双向校准
-          if (Array.isArray(data.projects) && data.projects.length > 0) {
-            setProjects(data.projects);
-            try { localStorage.setItem('airam_projects', JSON.stringify(data.projects)); } catch {}
-          } else if (localProjects.length === 0 && Array.isArray(data.projects)) {
-            setProjects(data.projects);
-          }
-
-          // 知识手记双向校准
-          if (Array.isArray(data.knowledge) && data.knowledge.length > 0) {
-            setKnowledge(data.knowledge);
-            try { localStorage.setItem('airam_knowledge', JSON.stringify(data.knowledge)); } catch {}
-          } else if (localKnowledge.length === 0 && Array.isArray(data.knowledge)) {
-            setKnowledge(data.knowledge);
-          }
-
-          // 日志双向校准
-          if (Array.isArray(data.syncLogs) && data.syncLogs.length > 0) {
-            setSyncLogs(data.syncLogs);
-            try { localStorage.setItem('airam_sync_logs', JSON.stringify(data.syncLogs)); } catch {}
-          } else if (localLogs.length === 0 && Array.isArray(data.syncLogs)) {
-            setSyncLogs(data.syncLogs);
-          }
+        } else {
+          // 未清除模式（初次演示）：服务端优先
+          if (serverRepos.length > 0) resolvedRepos = serverRepos;
+          if (serverProjects.length > 0) resolvedProjects = serverProjects;
+          if (serverKnowledge.length > 0) resolvedKnowledge = serverKnowledge;
+          if (serverLogs.length > 0) resolvedLogs = serverLogs;
         }
+
+        // 统一应用决议状态
+        setRepos(resolvedRepos);
+        setProjects(resolvedProjects);
+        setKnowledge(resolvedKnowledge);
+        setSyncLogs(resolvedLogs);
+
+        try {
+          localStorage.setItem('airam_repos', JSON.stringify(resolvedRepos));
+          localStorage.setItem('airam_projects', JSON.stringify(resolvedProjects));
+          localStorage.setItem('airam_knowledge', JSON.stringify(resolvedKnowledge));
+          localStorage.setItem('airam_sync_logs', JSON.stringify(resolvedLogs));
+        } catch {}
       })
       .catch((e) => {
         console.warn('服务端中枢数据同步提示:', e);
@@ -267,6 +379,10 @@ export default function App() {
       .finally(() => {
         isHydratedRef.current = true;
       });
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // 核心响应式持久化监听：只要增删改查任何项目或仓库，即刻同步落盘至 localStorage 并广播服务端
@@ -441,8 +557,16 @@ export default function App() {
 
   // 3. GitHub 仓库纳管与自动生成项目卡片
   const handleAddRepo = (newRepo: GitHubRepository, autoCard = true) => {
-    setRepos((prev) => [newRepo, ...prev]);
+    let nextRepos: GitHubRepository[] = [];
+    setRepos((prev) => {
+      nextRepos = [newRepo, ...prev.filter((r) => r.id !== newRepo.id && r.full_name?.toLowerCase() !== newRepo.full_name?.toLowerCase())];
+      try {
+        localStorage.setItem('airam_repos', JSON.stringify(nextRepos));
+      } catch {}
+      return nextRepos;
+    });
 
+    let nextKnowledge: KnowledgeItem[] | undefined;
     if (newRepo.readme_content) {
       const kbItem: KnowledgeItem = {
         id: `kb-gh-${Date.now()}`,
@@ -452,17 +576,30 @@ export default function App() {
         summary: newRepo.description || `由 GitHub 仓库 ${newRepo.full_name} 自动同步的 README 镜像。`,
         status: 'active',
         is_favorite: false,
-        tags: ['GitHub-API', newRepo.language],
+        tags: ['GitHub-API', newRepo.language || 'Markdown'],
         source_repo_id: newRepo.id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      setKnowledge((prev) => [kbItem, ...prev]);
+      setKnowledge((prev) => {
+        nextKnowledge = [kbItem, ...prev.filter((k) => k.id !== kbItem.id)];
+        try {
+          localStorage.setItem('airam_knowledge', JSON.stringify(nextKnowledge));
+        } catch {}
+        return nextKnowledge;
+      });
     }
 
+    let nextProjects: Project[] | undefined;
     if (autoCard) {
       const card = generateProjectCardFromRepo(newRepo);
-      setProjects((prev) => [card, ...prev]);
+      setProjects((prev) => {
+        nextProjects = [card, ...prev.filter((p) => p.id !== card.id)];
+        try {
+          localStorage.setItem('airam_projects', JSON.stringify(nextProjects));
+        } catch {}
+        return nextProjects;
+      });
     }
 
     const log: SyncLog = {
@@ -475,13 +612,40 @@ export default function App() {
       duration_ms: 150,
       created_at: new Date().toISOString(),
     };
-    setSyncLogs((prev) => [log, ...prev]);
+    setSyncLogs((prev) => {
+      const nextLogs = [log, ...prev];
+      try {
+        localStorage.setItem('airam_sync_logs', JSON.stringify(nextLogs));
+      } catch {}
+      return nextLogs;
+    });
+
+    // 立即广播至服务端中枢
+    syncHubToServer({
+      repos: nextRepos,
+      ...(nextKnowledge ? { knowledge: nextKnowledge } : {}),
+      ...(nextProjects ? { projects: nextProjects } : {}),
+      isDemoPurged: true,
+    });
   };
 
   // 3.5 移除/删除已纳管仓库
   const handleDeleteRepo = (repoId: string) => {
-    setRepos((prev) => prev.filter((r) => r.id !== repoId));
-    setSyncLogs((prev) => prev.filter((log) => log.repo_id !== repoId));
+    setRepos((prev) => {
+      const next = prev.filter((r) => r.id !== repoId);
+      try {
+        localStorage.setItem('airam_repos', JSON.stringify(next));
+      } catch {}
+      syncHubToServer({ repos: next, isDemoPurged: true });
+      return next;
+    });
+    setSyncLogs((prev) => {
+      const next = prev.filter((log) => log.repo_id !== repoId);
+      try {
+        localStorage.setItem('airam_sync_logs', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   // 4. 单仓库增量同步
@@ -605,6 +769,7 @@ export default function App() {
                 projects={projects}
                 repos={repos}
                 approvedSubmissions={submissions.filter((s) => s.status === 'approved')}
+                allSubmissions={submissions}
                 commentCounts={commentCountsByRepo}
                 onOpenComments={(repoId, repoName, repoUrl) => setSelectedCommentRepo({ repoId, repoName, repoUrl })}
                 onGoToAdmin={() => setViewMode(user?.isAdmin ? 'admin' : user ? 'user' : 'admin')}
@@ -946,7 +1111,42 @@ export default function App() {
         isOpen={isSubmitModalOpen}
         onClose={() => setIsSubmitModalOpen(false)}
         user={user}
-        onSubmitRepo={submitRepo}
+        onSubmitRepo={async (params) => {
+          const res = await submitRepo(params);
+          if (res.success && res.submission) {
+            // 若为管理员发布或已直接批准展示，同步自动纳管为系统核心资产卡片
+            if (res.submission.status === 'approved' || user?.isAdmin) {
+              const newGhRepo: GitHubRepository = {
+                id: `repo-sub-${Date.now()}`,
+                github_id: Date.now(),
+                owner: res.submission.owner,
+                name: res.submission.name,
+                full_name: res.submission.full_name,
+                description: res.submission.description || '精选开源仓库',
+                html_url: res.submission.repo_url,
+                homepage: res.submission.homepage,
+                language: res.submission.language || 'TypeScript',
+                license: 'MIT',
+                stars: res.submission.stars || 0,
+                forks: 0,
+                watchers: res.submission.stars || 0,
+                open_issues: 0,
+                default_branch: 'main',
+                is_private: false,
+                is_fork: false,
+                topics: [res.submission.language || 'code', 'open-source'],
+                created_at: res.submission.created_at,
+                updated_at: res.submission.created_at,
+                pushed_at: res.submission.created_at,
+                last_synced_at: new Date().toISOString(),
+                sync_status: 'synced',
+                auto_generate_card: true,
+              };
+              handleAddRepo(newGhRepo, true);
+            }
+          }
+          return res;
+        }}
         onSuccess={() => {
           fetchSubmissions();
         }}

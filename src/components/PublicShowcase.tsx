@@ -28,6 +28,7 @@ interface PublicShowcaseProps {
   projects: Project[];
   repos: GitHubRepository[];
   approvedSubmissions?: RepoSubmission[];
+  allSubmissions?: RepoSubmission[];
   commentCounts?: Record<string, number>;
   onOpenComments?: (repoId: string, repoName: string, repoUrl?: string) => void;
   onGoToAdmin: () => void;
@@ -45,6 +46,7 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
   projects,
   repos,
   approvedSubmissions = [],
+  allSubmissions = [],
   commentCounts = {},
   onOpenComments,
   onGoToAdmin,
@@ -81,6 +83,12 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
   }, [knowledge, selectedDocId]);
 
   const totalStars = repos.reduce((acc, r) => acc + r.stars, 0);
+
+  // 提取用户已提交但仍在审核中的仓库，确保提交后刷新绝不“消失”
+  const pendingUserSubmissions = useMemo(() => {
+    if (!allSubmissions) return [];
+    return allSubmissions.filter((s) => s.status === 'pending');
+  }, [allSubmissions]);
 
   const handleCopyCode = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -121,30 +129,41 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
           <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
             <button
               onClick={onOpenSubmitRepo}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 font-medium shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>提交开源仓库</span>
+              <span>推荐开源仓库</span>
             </button>
           </div>
         </div>
 
-        {/* Public Stack & Stats Inline Bar */}
+        {/* Public Stack & Stats Inline Bar (Clean Unboxed Typography) */}
         <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono text-zinc-500">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">TypeScript</span>
-            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">Cloudflare D1</span>
-            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">Workers</span>
-            <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[11px]">React</span>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <span>TypeScript</span>
+            <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-700">·</span>
+            <span>Cloudflare D1</span>
+            <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-700">·</span>
+            <span>Workers</span>
+            <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-700">·</span>
+            <span>React</span>
           </div>
           <div className="flex items-center gap-2.5 sm:gap-3 text-zinc-600 dark:text-zinc-400 text-[11px] sm:text-xs">
             <span>⭐ {totalStars} Stars</span>
             <span>·</span>
             <span>{projects.length} 个核心项目</span>
             <span>·</span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
               {approvedSubmissions.length} 个社区推荐
             </span>
+            {pendingUserSubmissions.length > 0 && (
+              <>
+                <span>·</span>
+                <span className="text-amber-500 font-medium">
+                  {pendingUserSubmissions.length} 个待审核
+                </span>
+              </>
+            )}
             <span>·</span>
             <span>{knowledge.length} 篇手记</span>
           </div>
@@ -195,97 +214,104 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
             <span className="text-[11px] font-mono text-zinc-400">真实代码资产</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {projects.map((proj) => {
-              const matchedRepo = repos.find((r) => r.id === proj.repository_id);
-              return (
-                <div
-                  key={proj.id}
-                  className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 sm:p-5 flex flex-col justify-between hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-sm sm:text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
-                            {proj.name}
-                          </h3>
-                          {proj.latest_version && (
-                            <span className="text-[10px] font-mono text-zinc-400">
-                              {proj.latest_version}
-                            </span>
-                          )}
+          {projects.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 p-8 text-center font-mono space-y-1.5 bg-zinc-50/50 dark:bg-zinc-900/20">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">暂无核心研发项目</p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">演示数据已清空，可登录管理员中枢同步 GitHub 纳管真实代码库</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {projects.map((proj) => {
+                const matchedRepo = repos.find((r) => r.id === proj.repository_id);
+                return (
+                  <div
+                    key={proj.id}
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 p-4 sm:p-5 flex flex-col justify-between hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm sm:text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
+                              {proj.name}
+                            </h3>
+                            {proj.latest_version && (
+                              <span className="text-[10px] font-mono text-zinc-400">
+                                {proj.latest_version}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
+                            {proj.one_liner}
+                          </p>
                         </div>
-                        <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
-                          {proj.one_liner}
-                        </p>
+
+                        <span className="text-xs font-mono text-zinc-500 shrink-0">
+                          {proj.rating}.0★
+                        </span>
                       </div>
 
-                      <span className="text-xs font-mono text-zinc-500 shrink-0">
-                        {proj.rating}.0★
+                      {/* Tech Stacks */}
+                      <div className="mt-3 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                        {proj.tech_stack.join(' · ')}
+                      </div>
+
+                      {/* Features */}
+                      <ul className="mt-3 space-y-1">
+                        {proj.features.slice(0, 3).map((f, i) => (
+                          <li key={i} className="text-xs text-zinc-600 dark:text-zinc-400 flex items-start gap-1.5">
+                            <span className="text-zinc-400">-</span>
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Card Bottom Links */}
+                    <div className="mt-4 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 rounded-full ${proj.status === 'active' ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+                        <span>{proj.status === 'active' ? '活跃' : '维护'}</span>
                       </span>
-                    </div>
 
-                    {/* Tech Stacks */}
-                    <div className="mt-3 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                      {proj.tech_stack.join(' · ')}
-                    </div>
-
-                    {/* Features */}
-                    <ul className="mt-3 space-y-1">
-                      {proj.features.slice(0, 3).map((f, i) => (
-                        <li key={i} className="text-xs text-zinc-600 dark:text-zinc-400 flex items-start gap-1.5">
-                          <span className="text-zinc-400">-</span>
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Card Bottom Links */}
-                  <div className="mt-4 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between text-[11px] font-mono text-zinc-500">
-                    <span className="flex items-center gap-1.5">
-                      <span className={`h-1.5 w-1.5 rounded-full ${proj.status === 'active' ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
-                      <span>{proj.status === 'active' ? '活跃' : '维护'}</span>
-                    </span>
-
-                    <div className="flex items-center gap-3">
-                      {matchedRepo && (
-                        <a
-                          href={matchedRepo.html_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1"
+                      <div className="flex items-center gap-3">
+                        {matchedRepo && (
+                          <a
+                            href={matchedRepo.html_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1"
+                          >
+                            <GitBranch className="h-3 w-3" />
+                            <span>GitHub ({matchedRepo.stars}★)</span>
+                          </a>
+                        )}
+                        {proj.homepage && (
+                          <a
+                            href={proj.homepage}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1"
+                          >
+                            <span>主页</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => onOpenComments?.(proj.id, proj.name, matchedRepo?.html_url || proj.homepage)}
+                          className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
+                          title="查看与发表项目评论"
                         >
-                          <GitBranch className="h-3 w-3" />
-                          <span>GitHub ({matchedRepo.stars}★)</span>
-                        </a>
-                      )}
-                      {proj.homepage && (
-                        <a
-                          href={proj.homepage}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1"
-                        >
-                          <span>主页</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                      <button
-                        onClick={() => onOpenComments?.(proj.id, proj.name, matchedRepo?.html_url || proj.homepage)}
-                        className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
-                        title="查看与发表项目评论"
-                      >
-                        <MessageSquare className="h-3 w-3" />
-                        <span>讨论 ({commentCounts[proj.id.toLowerCase()] || 0})</span>
-                      </button>
+                          <MessageSquare className="h-3 w-3" />
+                          <span>讨论 ({commentCounts[proj.id.toLowerCase()] || 0})</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -311,16 +337,56 @@ export const PublicShowcase: React.FC<PublicShowcaseProps> = ({
             </button>
           </div>
 
-          {approvedSubmissions.length === 0 ? (
+          {/* User Pending Submissions (Visible so submitted repos are immediately visible and preserved) */}
+          {pendingUserSubmissions.length > 0 && (
+            <div className="space-y-2 p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+              <div className="flex items-center justify-between text-xs font-mono text-zinc-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span>已提交的开源仓库 · 审核中 ({pendingUserSubmissions.length})</span>
+                </span>
+                <span className="text-[10px] text-zinc-400">已保存至本地与边缘队列</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {pendingUserSubmissions.map((sub) => (
+                  <div
+                    key={sub.id}
+                    onClick={() => setSelectedRepoDetail(sub)}
+                    className="p-3 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col justify-between hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors cursor-pointer"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-xs font-bold font-mono text-zinc-900 dark:text-zinc-100 truncate">
+                          {sub.full_name}
+                        </span>
+                        <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 shrink-0">
+                          待准入
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-500 mt-1 line-clamp-1">
+                        {sub.description || '精选开源仓库'}
+                      </p>
+                    </div>
+                    <div className="mt-2 pt-1.5 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                      <span>由 @{sub.submitter_login} 提交</span>
+                      <span>查看详情 →</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {approvedSubmissions.length === 0 && pendingUserSubmissions.length === 0 ? (
             <div className="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-6 text-center space-y-2">
               <p className="text-xs font-mono text-zinc-500">
-                暂无已准入的社区推荐仓库。
+                暂无社区推荐仓库。
               </p>
               <button
                 onClick={onOpenSubmitRepo}
-                className="text-xs font-mono text-emerald-600 dark:text-emerald-400 underline hover:no-underline"
+                className="text-xs font-mono text-zinc-900 dark:text-zinc-100 underline hover:no-underline"
               >
-                成为第一个提交并获准展示的开发者
+                推荐并提交开源仓库
               </button>
             </div>
           ) : (

@@ -82,18 +82,14 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[10px] text-zinc-400 font-mono font-normal ml-0.5">.os</span>
               </span>
               {viewMode === 'admin' ? (
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
-                  ADMIN-CORE
+                <span className="text-[11px] font-mono text-zinc-400 dark:text-zinc-500">
+                  / admin
                 </span>
               ) : viewMode === 'user' ? (
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 font-semibold">
-                  USER-HUB
+                <span className="text-[11px] font-mono text-zinc-400 dark:text-zinc-500">
+                  / user
                 </span>
-              ) : (
-                <span className="text-[10px] font-mono text-zinc-400 hidden md:inline">
-                  EDGE-NODE
-                </span>
-              )}
+              ) : null}
             </div>
           </button>
 

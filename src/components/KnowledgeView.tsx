@@ -239,14 +239,14 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
 
         {/* Multi-Tag Interactive Filter Bar */}
         {tagStats.length > 0 && (
-          <div className="p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 space-y-2">
+          <div className="p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 space-y-2">
             <div className="flex items-center justify-between text-[11px] font-mono">
-              <div className="flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 font-medium">
-                <TagIcon className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+                <TagIcon className="h-3 w-3 text-zinc-400" />
                 <span>标签联动筛选</span>
                 {selectedTags.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-600 text-white font-bold">
-                    {selectedTags.length}
+                  <span className="text-[10px] text-zinc-500 font-normal">
+                    ({selectedTags.length})
                   </span>
                 )}
               </div>
@@ -258,40 +258,40 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
                     className="px-1.5 py-0.5 rounded text-[10px] border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 transition-colors"
                     title={tagFilterMode === 'AND' ? '当前模式：同时包含全部已选标签 (AND)' : '当前模式：包含任一已选标签 (OR)'}
                   >
-                    模式: {tagFilterMode === 'AND' ? '且 (AND)' : '或 (OR)'}
+                    {tagFilterMode === 'AND' ? '模式: 且' : '模式: 或'}
                   </button>
                 )}
 
                 {selectedTags.length > 0 && (
                   <button
                     onClick={handleClearTags}
-                    className="flex items-center gap-0.5 text-rose-500 hover:text-rose-600 text-[10px] transition-colors"
+                    className="flex items-center gap-0.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-[10px] transition-colors"
                     title="清空已选标签"
                   >
                     <RotateCcw className="h-2.5 w-2.5" />
-                    <span>清空</span>
+                    <span>重置</span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Tag Pills */}
-            <div className="flex flex-wrap gap-1.5">
+            {/* Tag Buttons (Interactive Filter Controls) */}
+            <div className="flex flex-wrap gap-1">
               {(showAllTags ? tagStats : tagStats.slice(0, 10)).map((t) => {
                 const isSelected = selectedTags.includes(t.name);
                 return (
                   <button
                     key={t.name}
                     onClick={() => handleToggleTag(t.name)}
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono transition-all ${
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono transition-colors ${
                       isSelected
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs ring-1 ring-zinc-700 dark:ring-zinc-300'
-                        : 'bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/80 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium'
+                        : 'bg-white/80 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                     }`}
                   >
-                    {isSelected && <Check className="h-2.5 w-2.5 text-emerald-400 dark:text-emerald-600" />}
+                    {isSelected && <Check className="h-2.5 w-2.5" />}
                     <span>#{t.name}</span>
-                    <span className={`text-[9px] ${isSelected ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                    <span className={`text-[9px] ${isSelected ? 'opacity-70' : 'text-zinc-400'}`}>
                       {t.count}
                     </span>
                   </button>
@@ -322,7 +322,7 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
             <div className="flex items-center justify-between pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60 text-[10px] text-zinc-400 font-mono">
               <span>共筛选出 {filteredKnowledge.length} / {knowledge.length} 条</span>
               {selectedTags.length > 0 && (
-                <span className="text-emerald-600 dark:text-emerald-400 truncate max-w-[150px]">
+                <span className="text-zinc-600 dark:text-zinc-300 truncate max-w-[150px]">
                   已选: {selectedTags.map((t) => `#${t}`).join(tagFilterMode === 'AND' ? ' + ' : ' | ')}
                 </span>
               )}
@@ -338,7 +338,7 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
               {selectedTags.length > 0 && (
                 <button
                   onClick={handleClearTags}
-                  className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline"
+                  className="inline-flex items-center gap-1 text-[11px] text-zinc-600 dark:text-zinc-400 hover:underline"
                 >
                   <RotateCcw className="h-3 w-3" />
                   <span>清除标签筛选 ({selectedTags.length})</span>
@@ -371,27 +371,27 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
                   {item.summary || item.content.slice(0, 80)}
                 </p>
 
-                {/* Tags on Card */}
+                {/* Unboxed Typographic Tags on Card */}
                 {item.tags && item.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {item.tags.map((t) => {
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] font-mono">
+                    {item.tags.map((t, idx) => {
                       const isMatched = selectedTags.includes(t);
                       return (
-                        <span
-                          key={t}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleTag(t);
-                          }}
-                          title={`点击${isMatched ? '取消' : '添加'}标签筛选 #${t}`}
-                          className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
-                            isMatched
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-700 shadow-2xs'
-                              : 'bg-zinc-100 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                          }`}
-                        >
-                          #{t}
-                        </span>
+                        <React.Fragment key={t}>
+                          {idx > 0 && <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-700">·</span>}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleTag(t);
+                            }}
+                            className={`hover:underline cursor-pointer transition-colors ${
+                              isMatched ? 'text-zinc-900 dark:text-zinc-100 font-semibold' : 'text-zinc-400 dark:text-zinc-500'
+                            }`}
+                          >
+                            #{t}
+                          </button>
+                        </React.Fragment>
                       );
                     })}
                   </div>
