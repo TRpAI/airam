@@ -10,10 +10,12 @@ import {
   Download, 
   Sliders, 
   Database,
-  CloudLightning
+  CloudLightning,
+  Check
 } from 'lucide-react';
 import { GitHubUser, OAuthStatus } from '../types/auth';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { PWAInstallModal } from './PWAInstallModal';
 
 interface AdminSettingsViewProps {
   user: GitHubUser | null;
@@ -41,7 +43,20 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
   const [purgeSuccess, setPurgeSuccess] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const { isInstalled, install } = usePWAInstall();
+  const { 
+    isInstalled, 
+    isInstalling, 
+    hasNativePrompt, 
+    isModalOpen, 
+    isIOS, 
+    isMac, 
+    isAndroid, 
+    isInIframe, 
+    standaloneUrl, 
+    install, 
+    openInstallModal,
+    closeInstallModal 
+  } = usePWAInstall();
 
   const isProduction = import.meta.env.PROD;
   const isPurged = localStorage.getItem('airam_demo_purged') === 'true' || (knowledgeCount === 0 && projectsCount === 0 && reposCount === 0);
@@ -443,24 +458,52 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
           <div className="space-y-1">
             <div className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
               <span>安装为独立 Native App</span>
+              {isInstalled && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-normal flex items-center gap-1">
+                  <Check className="h-3 w-3" /> 已安装
+                </span>
+              )}
             </div>
             <p className="text-zinc-400 text-[11px]">
-              支持在 Mac / Windows / Linux 独立运行，无需打开浏览器即可使用；支持移动端无白屏离线缓存。
+              支持在 Mac / Windows / Linux 独立运行，无需打开浏览器即可使用；支持移动端无白屏离线缓存与桌面图标。
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={install}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors text-xs cursor-pointer shadow-xs"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>直接安装 Native App</span>
-            </button>
+            {isInstalled ? (
+              <button
+                onClick={openInstallModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-medium text-xs hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              >
+                <span>安装设置与指引</span>
+              </button>
+            ) : (
+              <button
+                onClick={install}
+                disabled={isInstalling}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors text-xs cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>{hasNativePrompt ? '一键安装 Native App' : '安装 Native App'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
 
+      {/* PWA Install Modal */}
+      <PWAInstallModal
+        isOpen={isModalOpen}
+        onClose={closeInstallModal}
+        hasNativePrompt={hasNativePrompt}
+        isInstalling={isInstalling}
+        onNativeInstall={install}
+        isIOS={isIOS}
+        isMac={isMac}
+        isAndroid={isAndroid}
+        isInIframe={isInIframe}
+        standaloneUrl={standaloneUrl}
+      />
     </div>
   );
 };

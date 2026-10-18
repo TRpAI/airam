@@ -11,12 +11,12 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
         manifest: {
           id: '/',
-          name: 'aidevhub 个人研发知识中枢',
-          short_name: 'aidevhub',
-          description: '以代码资产为核心的单用户边缘研发知识中枢与项目卡片系统',
+          name: 'DevKnowledge OS | 个人研发知识中枢与架构实施方案',
+          short_name: 'DevOS',
+          description: '基于 Cloudflare Workers + D1 + GitHub 自动同步的单用户个人研发知识中枢系统，包含架构设计稿、实施文档与实机工作台。',
           theme_color: '#09090b',
           background_color: '#09090b',
           display: 'standalone',

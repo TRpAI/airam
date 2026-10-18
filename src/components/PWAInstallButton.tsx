@@ -1,12 +1,21 @@
 import React from 'react';
 import { Download, Check, Loader2 } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { PWAInstallModal } from './PWAInstallModal';
 
 export const PWAInstallButton: React.FC<{ variant?: 'minimal' | 'full' | 'hero' }> = ({ variant = 'minimal' }) => {
   const { 
     isInstalled, 
     isInstalling,
-    install
+    hasNativePrompt,
+    isModalOpen,
+    isIOS,
+    isMac,
+    isAndroid,
+    isInIframe,
+    standaloneUrl,
+    install,
+    closeInstallModal,
   } = usePWAInstall();
 
   // If already running as installed PWA standalone
@@ -25,30 +34,46 @@ export const PWAInstallButton: React.FC<{ variant?: 'minimal' | 'full' | 'hero' 
   const handleInstallClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // 直接触发原生安装，不给任何提示或指引弹窗
+    // 触发安装流程：支持原生 prompt 直接弹窗，或在受限/特殊环境弹出即时安装控制台
     await install();
   };
 
   return (
-    <button
-      onClick={handleInstallClick}
-      disabled={isInstalling}
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono transition-all cursor-pointer ${
-        variant === 'hero'
-          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 font-semibold shadow-xs py-2 px-3 text-xs'
-          : variant === 'full'
-          ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 font-medium'
-          : 'border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100'
-      } disabled:opacity-60`}
-      title="直接安装为独立桌面/手机 App（支持离线与独立窗口）"
-    >
-      {isInstalling ? (
-        <Loader2 className="h-3.5 w-3.5 text-emerald-500 animate-spin" />
-      ) : (
-        <Download className="h-3.5 w-3.5 text-emerald-500" />
-      )}
-      <span className="hidden sm:inline">安装 App</span>
-      <span className="sm:hidden">安装</span>
-    </button>
+    <>
+      <button
+        onClick={handleInstallClick}
+        disabled={isInstalling}
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono transition-all cursor-pointer ${
+          variant === 'hero'
+            ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 font-semibold shadow-xs py-2 px-3 text-xs'
+            : variant === 'full'
+            ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 font-medium'
+            : 'border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100'
+        } disabled:opacity-60`}
+        title="安装为独立桌面/手机 App（支持离线运行与独立窗口）"
+      >
+        {isInstalling ? (
+          <Loader2 className="h-3.5 w-3.5 text-emerald-500 animate-spin" />
+        ) : (
+          <Download className="h-3.5 w-3.5 text-emerald-500" />
+        )}
+        <span className="hidden sm:inline">安装 App</span>
+        <span className="sm:hidden">安装</span>
+      </button>
+
+      {/* PWA 安装向导与独立窗口模态框 */}
+      <PWAInstallModal
+        isOpen={isModalOpen}
+        onClose={closeInstallModal}
+        hasNativePrompt={hasNativePrompt}
+        isInstalling={isInstalling}
+        onNativeInstall={install}
+        isIOS={isIOS}
+        isMac={isMac}
+        isAndroid={isAndroid}
+        isInIframe={isInIframe}
+        standaloneUrl={standaloneUrl}
+      />
+    </>
   );
 };

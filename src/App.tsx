@@ -48,6 +48,7 @@ import { VisitorDashboard } from './components/VisitorDashboard';
 import { RepoCommentsModal } from './components/RepoCommentsModal';
 import { useComments } from './hooks/useComments';
 import { useSubmissions } from './hooks/useSubmissions';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 import { 
   initialKnowledgeItems, 
@@ -1185,6 +1186,9 @@ export default function App() {
 
       {/* Global Keyboard Shortcut for Ctrl+K */}
       <GlobalKeyboardListener onOpenSearch={() => setIsSearchOpen(true)} />
+
+      {/* PWA Connectivity Status Banner */}
+      <OfflineIndicator />
 
       {/* Fixed Footer (前后台一致常驻固定页脚) */}
       <footer className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800/80 py-2.5 px-4 text-center text-xs font-mono text-zinc-400 dark:text-zinc-500 shadow-xs">

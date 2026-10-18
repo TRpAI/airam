@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 
-interface BeforeInstallPromptEvent extends Event {
+export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
@@ -9,6 +9,7 @@ export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
     return (typeof window !== 'undefined' && (window as any).__deferredPwaPrompt) || null;
   });
+
   const [isInstalled, setIsInstalled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return (
@@ -17,6 +18,7 @@ export function usePWAInstall() {
       (window as any).__isPwaInstalled === true
     );
   });
+
   const [isInIframe, setIsInIframe] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     try {
@@ -25,7 +27,25 @@ export function usePWAInstall() {
       return true;
     }
   });
+
+  const [isIOS, setIsIOS] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator.userAgent.toLowerCase();
+    return /iphone|ipad|ipod/.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+  });
+
+  const [isMac, setIsMac] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return /macintosh|mac os x/.test(window.navigator.userAgent.toLowerCase()) && !/iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  });
+
+  const [isAndroid, setIsAndroid] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return /android/.test(window.navigator.userAgent.toLowerCase());
+  });
+
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const checkInstalled = () => {
@@ -59,6 +79,7 @@ export function usePWAInstall() {
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      setIsModalOpen(false);
       if (typeof window !== 'undefined') {
         (window as any).__deferredPwaPrompt = null;
         (window as any).__isPwaInstalled = true;
@@ -76,7 +97,7 @@ export function usePWAInstall() {
     };
   }, []);
 
-  // 重构直接安装函数：绝不展示操作提示或指引弹窗，直接触发原生安装
+  // 触发安装逻辑：如果有原生 prompt 则直接触发；如果不可用或在受限环境，则弹出安装指引与独立窗口启动器
   const install = useCallback(async (): Promise<boolean> => {
     setIsInstalling(true);
     try {
@@ -84,52 +105,59 @@ export function usePWAInstall() {
         deferredPrompt ||
         (typeof window !== 'undefined' ? (window as any).__deferredPwaPrompt : null);
 
-      // 1. 如果当前环境已有原生 beforeinstallprompt 事件，直接触发安装对话框
       if (promptEvent && typeof promptEvent.prompt === 'function') {
         await promptEvent.prompt();
         const choice = await promptEvent.userChoice;
         if (choice.outcome === 'accepted') {
           setIsInstalled(true);
           setDeferredPrompt(null);
+          setIsModalOpen(false);
           if (typeof window !== 'undefined') {
             (window as any).__deferredPwaPrompt = null;
             (window as any).__isPwaInstalled = true;
           }
           return true;
         }
+        // 用户取消或拒绝，保持 modal 或返回
         return false;
       }
 
-      // 2. 如果在沙箱或受限 iframe 预览中（Chrome 安全策略限制在 iframe 内派发 beforeinstallprompt）
-      // 直接打开独立全屏窗口并带上 ?action=install，独立窗口一加载即刻自动唤起浏览器原生安装
-      if (isInIframe) {
-        const topUrl = new URL(window.location.href);
-        topUrl.searchParams.set('action', 'install');
-        window.open(topUrl.toString(), '_blank', 'noopener,noreferrer');
-        return true;
-      }
-
+      // 如果浏览器原生 prompt 尚未捕获或不支持（如 iOS Safari、Mac Safari 或沙箱 iframe）
+      // 打开专业安装引导模态框，确保用户操作有即时响应
+      setIsModalOpen(true);
       return false;
     } catch (err) {
-      console.warn('Direct PWA install error:', err);
+      console.warn('PWA install error:', err);
+      setIsModalOpen(true);
       return false;
     } finally {
       setIsInstalling(false);
     }
-  }, [deferredPrompt, isInIframe]);
+  }, [deferredPrompt]);
 
-  const openInStandaloneWindow = useCallback(() => {
-    try {
-      window.open(window.location.href, '_blank', 'noopener,noreferrer');
-    } catch {}
+  const openInstallModal = useCallback(() => {
+    setIsModalOpen(true);
   }, []);
 
+  const closeInstallModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
+  const standaloneUrl = typeof window !== 'undefined' ? `${window.location.origin}/?action=install` : '/';
+
   return {
-    isInstallable: !!deferredPrompt || isInIframe,
+    isInstallable: !!deferredPrompt || isInIframe || isIOS || isAndroid,
+    hasNativePrompt: !!deferredPrompt,
     isInstalled,
     isInIframe,
+    isIOS,
+    isMac,
+    isAndroid,
     isInstalling,
+    isModalOpen,
+    standaloneUrl,
     install,
-    openInStandaloneWindow,
+    openInstallModal,
+    closeInstallModal,
   };
 }
